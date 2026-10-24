@@ -1,0 +1,10 @@
+{
+  "name": "Hunter Blueprint",
+  "nexus": {
+    "mod_id": 4040,
+    "global_id": "17587891081160",
+    "game": "monsterhunterrise"
+  },
+  "github": "boyl/mhrise-hunter-blueprint",
+  "version": "1.0.0"
+}

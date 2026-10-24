@@ -1,0 +1,76 @@
+# Hunter Blueprint · 猎人蓝图
+
+在《怪物猎人：崛起／曙光》中选择大厅猎人，一键复制装备、珠子、护石、两书替换技及可选炼化，保存为猎人个人组合。
+
+## 功能
+
+- 新增武器、五件防具、护石、花链和适用的猎虫，无需预先持有对应装备。
+- 还原普通装饰品、百龙装饰品及朱／苍书替换技。
+- 自动使用装备组合和猎人个人组合的最后一个空槽；两类槽位编号可能不同。
+- 不切换当前穿着，猎人个人组合的道具与外观采用“不关联”。
+- 容量不足、目标退出、远端数据不完整或效果无法确认时停止；可恢复的写入异常会回滚。
+
+## 炼化选项
+
+“复制炼化”和“允许非法炼化（不一定实际非法）”默认勾选。
+
+| 选项 | 行为 |
+|---|---|
+| 不复制炼化 | 使用基础装备；原珠子装不下基础孔位时停止 |
+| 复制炼化，关闭允许非法炼化 | 仅按已支持的正常生成规则还原；无可证明的等效解时停止 |
+| 复制炼化，开启允许非法炼化 | 优先预算内还原，再放宽生成约束；仍校验最终效果 |
+
+远端不提供原始炼化条目，重建的是最终效果。内部条目可能不同；正常模式拒绝不代表来源一定非法。珠子按可见技能与孔位还原，不能唯一确定时不猜测。
+
+## 前置与兼容
+
+- Windows Steam 版《怪物猎人：崛起：曙光》。本机验证基线：Steam build 17920865。
+- [REFramework 官方下载](https://github.com/praydog/REFramework/releases)；稳定版资产为 `MHRISE.zip`。[开发构建](https://github.com/praydog/REFramework-nightly/releases)目前采用 `REFramework.zip`。不要下载 `Source code` 作为运行前置。
+- 按[官方安装说明](https://github.com/praydog/REFramework#installation)，非 VR 使用只需将框架包里的 `dinput8.dll` 放入游戏根目录。已能正常运行的框架无需为本 Mod 盲目升级。
+- 已实机验证框架提交 `654bac566ad2cb645a5ddbf72d0008e8698187b8`；其他构建及其他平台未做完整兼容验收。框架不随包分发。
+- 中文字体随包附带，遵循 SIL Open Font License 1.1。
+
+## 安装
+
+1. 退出游戏。首次使用建议备份自己的游戏存档。
+2. Steam → 游戏属性 → 已安装文件 → 浏览，找到 `MonsterHunterRise.exe`。
+3. 安装前置 REFramework。
+4. 将本包的 `reframework` 文件夹复制到游戏根目录并合并，不能多套一层压缩包名称。
+5. 进入角色与多人大厅，按 Insert 打开 REFramework，在 Script Generated UI 中勾选 **猎人蓝图：显示面板**。
+6. 选择猎人、设置选项、点击“复制所选配装”。成功后到道具箱的“猎人个人组合”选择对应的“大厅复制 N”。
+
+```text
+MonsterHunterRise/                 ← 游戏根目录
+├─ MonsterHunterRise.exe           ← 游戏原有文件
+├─ dinput8.dll                     ← REFramework 前置
+└─ reframework/
+   ├─ autorun/
+   │  ├─ LoadoutClone.lua          ← 本 Mod 入口
+   │  └─ LoadoutClone/             ← 本 Mod 的 11 个模块
+   ├─ fonts/
+   │  └─ NotoSansSC-Regular.otf    ← 中文字体
+   └─ data/LoadoutClone/
+      └─ transaction.json          ← 运行时生成的恢复记录
+```
+
+面板支持左对齐玩家列表、收起、关闭；隐藏 REFramework 时同步隐藏。安装包不包含开发探针、备份存档或测试请求。
+
+## 升级与卸载
+
+升级时退出游戏，覆盖本 Mod 的入口和模块。保留 `reframework/data/LoadoutClone`，尤其是事务恢复记录。内部文件夹名沿用 LoadoutClone，不需要改名。
+
+卸载时仅移除 `reframework/autorun/LoadoutClone.lua` 和 `reframework/autorun/LoadoutClone/`。字体可能由其他 Mod 共用，不要随意删除；也不要删除整个 reframework 文件夹或共享的 dinput8.dll。卸载脚本不会删除已新增到存档的装备和组合。
+
+旧开发版若在 `config.json` 中设置了 `write_enabled:false`，会继续禁止写入；首次安装无需开发配置文件。出现“上次写入未确认恢复”时保留日志与事务文件，不要通过删除恢复记录强行继续。
+
+## 已知范围
+
+- 本版不包含外观复制；后续版本再加入。
+- 正常炼化求解使用保守规则，部分特殊炼化或不可唯一还原的配装会拒绝。
+- 远端刚切装或尚未完整同步时，需要等数据加载后再复制。
+- 回滚覆盖可恢复的 Lua 错误，不承诺断电、强制结束游戏或原生崩溃时的原子恢复。
+- 14 类武器的基础构造已验证；不等于穷举所有武器 ID、炼化组合或其他 Mod 的修改。
+
+## 开发
+
+`python tools/run_tests.py` 执行纯 Lua 回归（需要 lupa）；`python tools/check_lua.py` 检查语法。验收记录在 `docs/acceptance/loadout-clone.md`。开发工具不进入玩家安装包，原始采样证据不公开分发。

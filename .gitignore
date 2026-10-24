@@ -1,0 +1,5 @@
+evidence/*
+!evidence/.gitkeep
+__pycache__/
+*.zip
+dist/

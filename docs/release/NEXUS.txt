@@ -1,0 +1,49 @@
+[size=5][b]Hunter Blueprint · 猎人蓝图[/b][/size]
+Copy a lobby hunter's equipment, decorations, talisman, Switch Skills and optional augments into a new Hunter Loadout. Chinese interface.
+一键复制大厅猎人的装备、珠子、护石、替换技及可选炼化，保存为猎人个人组合。
+
+[size=4][b]Features / 功能[/b][/size]
+[list]
+[*]Creates independent weapons, armor, talismans, petalaces and applicable kinsects. You do not need to own the source equipment.
+[*]Includes regular and Rampage decorations, plus both red and blue Switch Skill scrolls.
+[*]Saves to the last empty Equipment Loadout and Hunter Loadout slots. Keeps current equipment unchanged; items and layered armor are not linked.
+[*]Optional augment copying, with normal-rule and relaxed reconstruction modes. Both Copy augments and Allow illegal augments are enabled by default. Relaxed mode does not necessarily produce illegal results: it tries within-budget solutions first.
+[*]Checks source completeness, capacity and resulting equipment. Recoverable write errors roll back; unresolved recovery blocks further writes.
+[/list]
+新增完整装备，无需事先持有；保存到最后的空组合槽，不覆盖已有组合。复制炼化与“允许非法炼化（不一定实际非法）”默认开启，仍检查最终效果。取消炼化后若基础孔位装不下原珠子，会停止。
+
+[size=4][b]Requirements / 前置[/b][/size]
+Windows Steam Monster Hunter Rise: Sunbreak. Tested game build: 17920865.
+[url=https://github.com/praydog/REFramework/releases]REFramework official releases[/url] — stable asset: MHRISE.zip.
+[url=https://github.com/praydog/REFramework-nightly/releases]REFramework developer builds[/url] — current asset: REFramework.zip.
+Use the framework's dinput8.dll in the game root for non-VR play. Source code archives are not the runtime. Tested framework commit: 654bac566ad2cb645a5ddbf72d0008e8698187b8; other builds are not fully verified. The framework itself is not bundled.
+中文字体已包含，按 SIL Open Font License 1.1 分发。
+
+[size=4][b]Installation / 安装[/b][/size]
+[list=1]
+[*]Exit the game and back up your save before first use. 退出游戏，首次使用前备份存档。
+[*]In Steam, use Properties → Installed Files → Browse to locate MonsterHunterRise.exe. 从 Steam 浏览游戏本地文件。
+[*]Install REFramework, then merge this archive's reframework folder into that game folder. 不要多套一层压缩包目录。
+[*]Enter your character and a multiplayer lobby. Open REFramework (default: Insert), then Script Generated UI → 猎人蓝图：显示面板.
+[*]Select a hunter, choose the options and click 复制所选配装. Find the resulting 大厅复制 N in the item box's Hunter Loadouts. 在道具箱的猎人个人组合中使用。
+[/list]
+[code]MonsterHunterRise/
+  MonsterHunterRise.exe
+  dinput8.dll                     (REFramework)
+  reframework/
+    autorun/LoadoutClone.lua
+    autorun/LoadoutClone/         (11 modules)
+    fonts/NotoSansSC-Regular.otf[/code]
+
+[size=4][b]Upgrade / Uninstall · 升级与卸载[/b][/size]
+Exit the game before replacing the entry script and modules. Keep reframework/data/LoadoutClone and its recovery records.
+To uninstall, remove only autorun/LoadoutClone.lua and autorun/LoadoutClone/. Do not remove the shared framework or a font used by other mods. Created equipment and loadouts remain in your save.
+升级保留 data/LoadoutClone 的恢复记录。卸载只移除本 Mod 脚本，不删除已写入存档的装备。旧开发版 config.json 若明确关闭 write_enabled，仍会禁止写入；首次安装不需要该配置。
+
+[size=4][b]Scope / 已知范围[/b][/size]
+Layered armor copying is not included in 1.0.0. Original augment rows are not available remotely, so reconstruction targets equivalent final effects; internal rows can differ. Normal mode uses conservative rules and can reject some legitimate special augments. Ambiguous decorations or incomplete remote data are rejected. Wait for a hunter's data to finish synchronizing after an equipment change.
+本版没有外观复制。正常模式失败不代表对方装备非法；无法确认等效结果时不猜测。回滚针对可恢复的 Lua 错误，不承诺断电、强制结束或原生崩溃时恢复。
+
+Validated: three augment modes, real commits and rollback, basic construction of 14 weapon families, talisman effective fields, both scrolls, loadout persistence and kinsect link persistence. This is not exhaustive coverage of every weapon ID or augment combination.
+
+[url=https://github.com/boyl/mhrise-hunter-blueprint]Source and full documentation / 源码及完整说明[/url]
