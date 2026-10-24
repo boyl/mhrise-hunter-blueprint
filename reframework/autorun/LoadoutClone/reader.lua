@@ -40,6 +40,21 @@ local function identity(hunter)
     return tostring(required(hunter,"_NetworkId"))..":"..guid(required(hunter,"_HunterUniqueId"))
 end
 function M.new() return setmetatable({},{__index=M}) end
+function M:progression_state()
+    local lobby=assert(sdk.get_managed_singleton("snow.LobbyManager"),"当前角色尚未就绪")
+    local mine=required(lobby,"_myselfIndex")
+    local hunters=required(lobby,"_hunterInfo")
+    assert(mine>=0 and mine<array_size(hunters,16),"当前角色索引无效")
+    local hunter=required(hunters:get_element(mine),"_name")
+    local manager=assert(sdk.get_managed_singleton("snow.gui.EquipStatusParamManager"))
+    local packets=required(manager,"_lobbyParam")
+    assert(mine<array_size(packets,16),"当前角色配装尚未加载")
+    local status=required(packets:get_element(mine),"_equipStatusParam")
+    assert(required(status,"name")==hunter,"当前角色状态尚未对应")
+    local enabled=scalar_value(required(status,"isMRRelease"))
+    assert(type(enabled)=="boolean","当前角色大师等级状态无效")
+    return enabled
+end
 function M:list_members()
     local lobby=sdk.get_managed_singleton("snow.LobbyManager")
     if not lobby then return {session=nil,members={}} end
@@ -99,6 +114,8 @@ function M:capture(key)
         return result
     end
     local data=plain(packet,0)
+    -- 完整配装包中空护石对象表示未装备；保留空位，不凭空制造护石。
+    if packet:get_field("_talismanParam")==nil then data._talismanParam={empty=true} end
     local status=data._equipStatusParam
     assert(status and not status.unavailable and status.name==target.name,"装备缓存与选中玩家尚未对应")
     local still_present=false

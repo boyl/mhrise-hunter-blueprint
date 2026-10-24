@@ -10,7 +10,7 @@ end
 local function equip(index)
     local obj=object({["<InventoryIndex>k__BackingField"]=index,_CustomBuildup={}})
     for _,key in ipairs({"_IdType","_IdVal","_BuildupPoint","_CustomEnable","_CustomCount","_CustomBuildupType","_BowgunCustomizeType","_PairInsectInventoryIndex","_HyakuryuDecoId","_IsLock","_IsSetGuildCard"}) do obj[key]=0 end
-    for _,key in ipairs({"_DecoIdList","_CustomOpenIdArray","_TalismanDecoSlotNumList","_TalismanSkillIdList","_TalismanSkillLvList"}) do obj[key]={0,0,0} end
+    for _,key in ipairs({"_DecoIdList","_CustomOpenIdArray","_TalismanDecoSlotNumList","_TalismanSkillIdList","_TalismanSkillLvList","_HyakuryuSkillIdList","_PrevHyakuryuSkillId"}) do obj[key]={0,0,0} end
     return obj
 end
 local Native={field=function(obj,key) assert(obj[key]~=nil,key);return obj[key] end,array=function(v) return v end,
@@ -46,3 +46,31 @@ reject("猎人个人组合没有空位",function() end)
 reject("珠子数量将超过上限",function(source) source.items[1].candidate.decorations={1} end)
 reject("珠子箱空间不足",function(source,_,_,deco) source.items[1].candidate.decorations={2};deco._InventoryDataList.mItems[1]._Num=1 end)
 print("PASS 装备箱/装备组合/猎人组合满位、珠子数量上限及珠子箱满位均零写入拒绝（5 项）")
+local function complete_fixture()
+    local w,source,box,manager=fixture()
+    manager._HunterMySetList=arr({object({_IsUsing=false,_Name="",_ItemMysetIndex=-1,_EquipMysetIndex=-1,_OverwearMysetIndex=-1})})
+    sdk.create_instance=function()
+        local o=object({})
+        function o:add_ref() return self end
+        function o:set_field(k,v) self[k]=v end
+        return o
+    end
+    sdk.create_managed_string=function(v) return v end
+    local original=w.native.call
+    function w.native:call(t,m,obj,...)
+        if m==".ctor()" then return end
+        if m=="setupParam" then
+            local args={...};obj._IsUsing=true;obj._ItemMysetIndex=args[1];obj._EquipMysetIndex=args[2];obj._OverwearMysetIndex=args[3];return
+        end
+        return original(self,t,m,obj,...)
+    end
+    return w,source
+end
+local w,s=complete_fixture()
+s.items[8]={kind="talisman",empty=true,candidate={}}
+s.snapshot={data={_talismanParam={empty=true}}}
+local p=w:prepare(s)
+assert(#p.allocated==7 and p.allocated[8]==nil and w.write_count==0)
+s.snapshot.data._talismanParam={unavailable=true}
+assert(not pcall(w.prepare,w,s))
+print("PASS 未装备护石保留空槽，缺少明确空位证据时拒绝（2 项）")

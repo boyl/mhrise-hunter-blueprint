@@ -5,7 +5,9 @@ Copy a lobby hunter's equipment, decorations, talisman, Switch Skills and option
 [size=4][b]Features / 功能[/b][/size]
 [list]
 [*]Creates independent weapons, armor, talismans, petalaces and applicable kinsects. You do not need to own the source equipment.
-[*]Includes regular and Rampage decorations, plus both red and blue Switch Skill scrolls.
+[*]Includes regular and Rampage decorations and older weapons' Ramp-Up skills. An unequipped talisman remains empty.
+[*]Both hunters must have the same Master Rank unlock state. Pre-MR hunters copy legacy Switch Skills; MR hunters copy both red and blue scrolls.
+[*]仅允许双方大师等级开放状态相同的猎人互相复制：未开放时复制基础替换技，已开放时复制朱／苍书；保留旧武器百龙强化及未装备的护石空槽。
 [*]Saves to the last empty Equipment Loadout and Hunter Loadout slots. Keeps current equipment unchanged; items and layered armor are not linked.
 [*]Optional augment copying, with normal-rule and relaxed reconstruction modes. Both Copy augments and Allow illegal augments are enabled by default. Relaxed mode does not necessarily produce illegal results: it tries within-budget solutions first.
 [*]Checks source completeness, capacity and resulting equipment. Recoverable write errors roll back; unresolved recovery blocks further writes.

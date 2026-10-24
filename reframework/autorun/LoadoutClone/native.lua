@@ -150,6 +150,24 @@ function M:build_armor(candidate)
         result.all_skills=M.skills(native)
         return detached,result
 end
+function M:restore_rampage(obj,skills)
+    assert(type(skills)=="table" and #skills<=6,"百龙强化数据不完整")
+    local count=0
+    for k,id in pairs(skills) do
+        assert(type(k)=="number" and k%1==0 and k>=1 and k<=#skills,"百龙强化数组不连续")
+        assert(type(id)=="number" and id%1==0 and id>=0,"百龙强化 ID 无效")
+        count=count+1
+    end
+    assert(count==#skills,"百龙强化数组缺项")
+    local initial=array(field(obj,"_HyakuryuSkillIdList"))
+    assert(#skills<=#initial,"百龙强化槽位不足")
+    for i,id in ipairs(skills) do self:call("snow.data.EquipmentInventoryData","setHyakuryuSkill",obj,i-1,id) end
+    assert(not self:call("snow.data.EquipmentInventoryData","checkWeaponHyakuryuSkillCheat()",obj),"百龙强化未通过游戏校验")
+    local effective=array(self:call("snow.data.EquipmentInventoryData","get_HyakuryuSkillIdList()",obj))
+    assert(#effective==#initial,"百龙强化回读长度不一致")
+    for i,id in ipairs(effective) do assert(id==(skills[i] or 0),"百龙强化回读不一致") end
+    return effective
+end
 function M:build_weapon(candidate)
     local report={}
     local function call(...) return self:call(...) end
@@ -159,6 +177,7 @@ function M:build_weapon(candidate)
         report.transient_objects=1;report.transient_mutations=1
         call("snow.data.EquipmentInventoryData",".ctor()",detached)
         call("snow.data.EquipmentInventoryData","setId(snow.data.ContentsIdSystem.WeaponId)",detached,target.WeaponId)
+        local rampage=self:restore_rampage(detached,target.HyakuryuSkill_Slot)
         detached:set_field("_CustomEnable",target.CustomEnable)
         detached:set_field("_BowgunCustomizeType",target.CustomizeType)
         detached:set_field("_HyakuryuDecoId",target.HyakuryuDecorationsId)
@@ -178,7 +197,7 @@ function M:build_weapon(candidate)
         call("snow.data.WeaponData","updateDeco()",native)
         call("snow.data.WeaponData","updateHyakuryuDeco()",native)
         call("snow.data.WeaponData","updateSkillDataList()",native)
-        local out={}
+        local out={rampage=rampage}
         for _,key in ipairs({"CustomAddAtk","CustomAddCriticalRate","CustomAddMainElementVal","CustomAddSubElementVal","CustomAddSlot","CustomAddSharpness","CustomAddFireLv"}) do
             out[key]=call("snow.data.WeaponData","get_"..key.."()",native)
         end

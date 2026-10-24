@@ -21,4 +21,4 @@ re.on_draw_ui(function()
     if changed then view:set_open(value) end
     if view.font then imgui.pop_font() end
 end)
-log.info("[LoadoutClone 1.0.0] loaded; panel closed until explicitly opened")
+log.info("[LoadoutClone 1.0.1] loaded; panel closed until explicitly opened")

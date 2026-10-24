@@ -3,12 +3,27 @@ local M={}
 local function integer(v,min,max)
     return type(v)=="number" and v%1==0 and v>=min and v<=max
 end
+local function dense(values,count,label)
+    assert(type(values)=="table",label.."缺失")
+    local actual=0
+    for k in pairs(values) do
+        assert(integer(k,1,count),label.."长度无效")
+        actual=actual+1
+    end
+    assert(actual==count,label.."长度不一致")
+end
 function M.resolve(part,catalog,options)
     options=options or {}
     local levels,colors=part.DecoLvType,part.SlotIconColor
     assert(type(levels)=="table" and #levels==3 and type(colors)=="table" and #colors==3,"珠子孔位数据不完整")
+    dense(levels,3,"珠子孔位");dense(colors,3,"珠子颜色")
     local ids=part.SkillIdList or part.EquipSkill or {}
     local lvs=part.SkillLv or part.EquipSkillLv or {}
+    dense(ids,#ids,"技能列表");dense(lvs,#ids,"技能等级")
+    if part.DecoSkillEquipUp~=nil then
+        dense(part.DecoSkillEquipUp,#ids,"珠子技能标志")
+        for _,flag in ipairs(part.DecoSkillEquipUp) do assert(type(flag)=="boolean","珠子技能标志无效") end
+    end
     local total,allowed={},{}
     for i,id in ipairs(ids) do
         assert(integer(id,0,65535) and integer(lvs[i],0,255),"技能数值无效")
@@ -78,6 +93,12 @@ function M.resolve(part,catalog,options)
     if #solutions==0 then return nil,"no_solution" end
     if #solutions>1 then return nil,"ambiguous_decoration" end
     return solutions[1]
+end
+function M.resolve_weapon(part,catalog)
+    -- 武器包 EquipSkill/EquipSkillLv 为普通装饰品的技能总量；百龙技能单独传输。
+    -- 不沿用护石允许固有技能剩余的语义，否则低等级技能珠会成为伪解。
+    assert(type(part.EquipSkill)=="table" and type(part.EquipSkillLv)=="table","武器珠子技能数据缺失")
+    return M.resolve(part,catalog,{base_skills={}})
 end
 function M.check_slots(deco_levels,slot_levels)
     assert(#deco_levels==3 and #slot_levels==3,"slot count")

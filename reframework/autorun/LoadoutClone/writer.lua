@@ -23,7 +23,7 @@ local function equipment_state(obj)
     local out={}
     for _,key in ipairs({"_IdType","_IdVal","_BuildupPoint","_CustomEnable","_CustomCount","_CustomBuildupType","_BowgunCustomizeType","_PairInsectInventoryIndex","_HyakuryuDecoId","_IsLock","_IsSetGuildCard"}) do out[key]=field(obj,key) end
     out._PairInsectInventoryIndex=M.pair_index(obj)
-    for _,key in ipairs({"_DecoIdList","_CustomOpenIdArray","_TalismanDecoSlotNumList","_TalismanSkillIdList","_TalismanSkillLvList"}) do out[key]=array(field(obj,key)) end
+    for _,key in ipairs({"_DecoIdList","_CustomOpenIdArray","_TalismanDecoSlotNumList","_TalismanSkillIdList","_TalismanSkillLvList","_HyakuryuSkillIdList","_PrevHyakuryuSkillId"}) do out[key]=array(field(obj,key)) end
     out.augments={};local rows=field(obj,"_CustomBuildup")
     local count,get=Native.array_access(rows,7)
     for i=0,count-1 do
@@ -58,6 +58,13 @@ function M:backup(type_name,source)
 end
 function M:prepare(source)
     assert(#source.items==8,"完整装备候选缺失")
+    for i=1,8 do
+        local item=source.items[i]
+        assert(type(item)=="table" and item.candidate,"装备候选包含空项")
+        if item.empty then
+            assert(i==8 and item.kind=="talisman" and not item.object and source.snapshot.data._talismanParam.empty==true,"空装备候选缺少来源证据")
+        else assert(item.object,"装备候选包含空项") end
+    end
     self.native.game_method_calls=0
     local data=assert(sdk.get_managed_singleton("snow.data.DataManager"))
     local manager=assert(sdk.get_managed_singleton("snow.data.EquipDataManager"))
@@ -76,9 +83,11 @@ function M:prepare(source)
         error("装备箱空间不足")
     end
     for i,item in ipairs(source.items) do
+      if not item.empty then
         local dest=reserve(item.kind=="petalace" and "_LvBuffCageInventoryList" or "_WeaponArmorInventoryList")
         plan.allocated[i]=dest
         plan.entries[#plan.entries+1]={kind="equipment",equipment_kind=item.kind,dest=dest,object=item.object,before=equipment_state(dest),backup=self:backup("snow.data.EquipmentInventoryData",dest),index=field(dest,"<InventoryIndex>k__BackingField")}
+      end
     end
     if source.insect then
         local dest=reserve("_WeaponArmorInventoryList")
@@ -122,28 +131,36 @@ function M:prepare(source)
     return plan
 end
 function M:assert_context(plan)
+    assert(self.reader:progression_state()==plan.source.progression,"当前角色大师等级开放状态已变化")
     local list=self.reader:list_members()
     assert(list.session==plan.source.session,"角色或大厅会话已变化")
     local current=self.reader:capture(plan.source.source.key)
     for _,key in ipairs({"_weaponParam","_armorParam","_talismanParam","_lvBuffParam"}) do assert(equal(current.data[key],plan.source.snapshot.data[key]),"目标配装已变化，请重试") end
-    for _,key in ipairs({"switchActionId","switchActionId_MR_1","switchActionId_MR_2"}) do assert(equal(current.data._equipStatusParam[key],plan.source.snapshot.data._equipStatusParam[key]),"目标替换技已变化") end
+    for _,key in ipairs({"isMRRelease","switchActionId","switchActionId_MR_1","switchActionId_MR_2"}) do assert(equal(current.data._equipStatusParam[key],plan.source.snapshot.data._equipStatusParam[key]),"目标替换技或大师等级开放状态已变化") end
     assert(sdk.get_managed_singleton("snow.data.EquipDataManager")==plan.manager,"装备管理器已变化")
 end
 function M:apply(entry)
-    self.write_count=self.write_count+1
+    local function begin_write()
+        entry.write_started=true
+        self.write_count=self.write_count+1
+    end
     if entry.kind=="equipment" then
         assert(equal(equipment_state(entry.dest),entry.before),"预留装备槽已变化")
+        begin_write()
         self:copy("snow.data.EquipmentInventoryData",entry.dest,entry.object)
         if entry.equipment_kind=="talisman" then self.native:check_talisman(entry.dest) end
         assert(field(entry.dest,"<InventoryIndex>k__BackingField")==entry.index,"库存下标被改变")
     elseif entry.kind=="decoration" then
         assert(field(entry.dest,"_Id")==entry.before.id and field(entry.dest,"_Num")==entry.before.count,"珠子库存已变化")
+        begin_write()
         self:copy("snow.data.DecorationsInventoryData",entry.dest,entry.object)
     elseif entry.kind=="hunter" then
         assert(equal(Hunter.state(entry.dest),entry.before),"预留猎人组合已变化")
+        begin_write()
         self:copy(Hunter.type_name,entry.dest,entry.object)
-    else
+    elseif entry.kind=="loadout" then
         assert(equal(set_state(entry.dest),entry.before),"配装槽已变化")
+        begin_write()
         local plan=entry.plan
         if plan.insect then self.native:call("snow.data.EquipmentInventoryData","setPairInsectInventory(snow.data.EquipmentInventoryData)",plan.allocated[1],plan.insect) end
         local staged=assert(sdk.create_instance("snow.equip.PlEquipMySetData",true)):add_ref()
@@ -162,6 +179,7 @@ function M:apply(entry)
         end
         entry.expected=set_state(staged)
         self:copy("snow.equip.PlEquipMySetData",entry.dest,staged)
+    else error("未知写入条目类型："..tostring(entry.kind))
     end
     if self.fault_after and self.write_count==self.fault_after then error("development injected failure") end
 end
@@ -182,11 +200,13 @@ function M:verify(plan)
     return {slot=plan.slot+1,hunter_slot=plan.hunter_slot+1,name="大厅复制 "..(plan.hunter_slot+1)}
 end
 function M:restore(entry)
+    if not entry.write_started then return end
     self.restore_count=(self.restore_count or 0)+1
     self:copy(entry.type_name or (entry.kind=="equipment" and "snow.data.EquipmentInventoryData" or entry.kind=="decoration" and "snow.data.DecorationsInventoryData" or "snow.equip.PlEquipMySetData"),entry.dest,entry.backup)
     if entry.equipment_kind=="talisman" then self.native:check_talisman(entry.dest) end
 end
 function M:verify_restored(entry)
+    if not entry.write_started then return end
     if entry.kind=="equipment" then assert(equal(equipment_state(entry.dest),entry.before),"装备恢复回读失败")
     elseif entry.kind=="decoration" then assert(field(entry.dest,"_Id")==entry.before.id and field(entry.dest,"_Num")==entry.before.count,"珠子恢复回读失败")
     elseif entry.kind=="hunter" then assert(equal(Hunter.state(entry.dest),entry.before),"猎人组合恢复回读失败")
