@@ -3,7 +3,7 @@ from pathlib import Path
 import argparse, hashlib, json, subprocess, zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 MODULES = "augments backend controller decorations hunter native planner reader transaction view writer".split()
 FILES = ["reframework/autorun/LoadoutClone.lua"] + [f"reframework/autorun/LoadoutClone/{m}.lua" for m in MODULES] + [
     "reframework/fonts/NotoSansSC-Regular.otf", "README.md",
@@ -15,7 +15,7 @@ def main():
     args = parser.parse_args()
     payload = {name: (ROOT / name).read_bytes() for name in FILES}
     assert len(payload) == 16
-    assert b"[LoadoutClone 1.0.1]" in payload[FILES[0]]
+    assert b"[LoadoutClone 1.0.2]" in payload[FILES[0]]
     hashes = {name: hashlib.sha256(data).hexdigest() for name, data in payload.items()}
     if args.check:
         print(json.dumps({"version": VERSION, "files": len(payload), "bytes": sum(map(len, payload.values())), "sha256": hashes}, ensure_ascii=False, indent=2))

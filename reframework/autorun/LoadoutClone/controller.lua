@@ -1,3 +1,12 @@
+-- debug 库在部分运行环境不可用；错误处理自身不能阻断绘制或回滚。
+local native_traceback=type(debug)=="table" and type(debug.traceback)=="function" and debug.traceback
+local function traceback(value,message)
+    if native_traceback then
+        if type(value)=="thread" then return native_traceback(value,message) end
+        return native_traceback(value)
+    end
+    return tostring(type(value)=="thread" and message or value)
+end
 local M={}
 function M.new(adapter)
     return setmetatable({adapter=adapter,members={},state="initial",copy_augments=true,allow_illegal_augments=true,copy_appearance=false},{__index=M})
@@ -6,7 +15,7 @@ function M:clear_selection()
     self.selected=nil;self.pending=nil;self.snapshot=nil;self.error=nil;self.job=nil;self.result=nil;self.progress=nil
 end
 function M:refresh()
-    local ok,data=xpcall(function() return self.adapter:list_members() end,debug.traceback)
+    local ok,data=xpcall(function() return self.adapter:list_members() end,traceback)
     if not ok then
         self:clear_selection();self.members={};self.state="error";self.error=tostring(data);return
     end
@@ -65,7 +74,7 @@ function M:step()
         if request.key~=self.selected or request.session~=self.session then self.pending=nil;self.job=nil;return end
         local ok,value=coroutine.resume(self.job)
         if not ok then
-            self.error=debug.traceback(self.job,tostring(value));self.state="error";self.pending=nil;self.job=nil;return
+            self.error=traceback(self.job,tostring(value));self.state="error";self.pending=nil;self.job=nil;return
         end
         if coroutine.status(self.job)=="dead" then
             self.pending=nil;self.job=nil
@@ -76,7 +85,7 @@ function M:step()
     end
     self.pending=nil
     if request.key~=self.selected or request.session~=self.session then return end
-    local ok,result=xpcall(function() return self.adapter:capture(request.key) end,debug.traceback)
+    local ok,result=xpcall(function() return self.adapter:capture(request.key) end,traceback)
     if not ok then self.state="error";self.error=tostring(result);self.snapshot=nil;return end
     result.options={copy_augments=request.options.copy_augments,allow_illegal_augments=request.options.allow_illegal_augments,copy_appearance=request.options.copy_appearance}
     self.snapshot=result;self.state="inspected"

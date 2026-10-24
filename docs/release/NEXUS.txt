@@ -1,3 +1,7 @@
+[b]1.0.2 修复 / Fix[/b]
+修复缺少 Lua debug 库时面板空白及错误处理失败；保留复制规则与存档格式。
+Fixes blank panels and error handling when Lua debug is unavailable. Copy rules and save formats are unchanged.
+
 [size=5][b]Hunter Blueprint · 猎人蓝图[/b][/size]
 Copy a lobby hunter's equipment, decorations, talisman, Switch Skills and optional augments into a new Hunter Loadout. Chinese interface.
 一键复制大厅猎人的装备、珠子、护石、替换技及可选炼化，保存为猎人个人组合。

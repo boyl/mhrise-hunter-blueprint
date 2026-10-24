@@ -1,3 +1,12 @@
+-- debug 库在部分运行环境不可用；错误处理自身不能阻断绘制或回滚。
+local native_traceback=type(debug)=="table" and type(debug.traceback)=="function" and debug.traceback
+local function traceback(value,message)
+    if native_traceback then
+        if type(value)=="thread" then return native_traceback(value,message) end
+        return native_traceback(value)
+    end
+    return tostring(type(value)=="thread" and message or value)
+end
 local M={}
 -- 当前 REFramework 所绑定 ImGui 的 FramePadding / ButtonTextAlign。
 local STYLE_FRAME_PADDING,STYLE_BUTTON_TEXT_ALIGN=11,24
@@ -113,6 +122,7 @@ function M:draw(controller)
         imgui.set_next_window_size(self.collapsed and {320,110} or {620,680},1);self.resize=false
     end
     self.open=imgui.begin_window(self.font and "猎人蓝图" or "Hunter Blueprint",self.open,0)
+    local ok,err=xpcall(function()
     if self.open then
         if imgui.button(self.font and (self.collapsed and "展开" or "收起") or (self.collapsed and "Expand" or "Minimize"),{72,30}) then self.collapsed=not self.collapsed;self.resize=true end
         imgui.same_line()
@@ -122,15 +132,19 @@ function M:draw(controller)
             if not self.font then imgui.text("Missing font: NotoSansSC-Regular.otf")
             else
                 local width=math.max(160,imgui.get_window_size().x-36)
-                local ok,err=xpcall(function() self:body(controller,width) end,debug.traceback)
-                if not ok then
-                    imgui.text_colored("界面显示异常，请查看日志。",COLOR.error)
-                    if self.render_error~=err then self.render_error=err;log.error("[LoadoutClone UI] "..err) end
-                end
+                self:body(controller,width)
             end
         end
     end
-    imgui.end_window()
+    end,traceback)
     if self.font then imgui.pop_font() end
+    if not ok then
+        -- 故障页使用默认字体和最基础文字 API，不依赖失效的布局或中文字体。
+        imgui.text("Hunter Blueprint UI error")
+        imgui.text("See re2_framework_log.txt: [LoadoutClone UI]")
+        local reason=tostring(err):match("[^\n]+")
+        if self.render_error~=reason then self.render_error=reason;log.error("[LoadoutClone UI] "..err) end
+    else self.render_error=nil end
+    imgui.end_window()
 end
 return M
