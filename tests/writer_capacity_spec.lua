@@ -46,9 +46,16 @@ reject("猎人个人组合没有空位",function() end)
 reject("珠子数量将超过上限",function(source) source.items[1].candidate.decorations={1} end)
 reject("珠子箱空间不足",function(source,_,_,deco) source.items[1].candidate.decorations={2};deco._InventoryDataList.mItems[1]._Num=1 end)
 print("PASS 装备箱/装备组合/猎人组合满位、珠子数量上限及珠子箱满位均零写入拒绝（5 项）")
-local function complete_fixture()
+local function appearance_fixture(enabled,full)
     local w,source,box,manager=fixture()
     manager._HunterMySetList=arr({object({_IsUsing=false,_Name="",_ItemMysetIndex=-1,_EquipMysetIndex=-1,_OverwearMysetIndex=-1})})
+    source.options={copy_appearance=enabled};source.appearance=enabled and {snapshot={}} or nil
+    local called=0
+    w.appearance={prepare=function(_,candidate,plan)
+        called=called+1;assert((plan.source.mode=="appearance_only" or #plan.allocated==8) and candidate==source.appearance)
+        if full then error("外观组合没有空位") end
+        return {kind="appearance",slot=0}
+    end}
     sdk.create_instance=function()
         local o=object({})
         function o:add_ref() return self end
@@ -64,9 +71,24 @@ local function complete_fixture()
         end
         return original(self,t,m,obj,...)
     end
-    return w,source
+    return w,source,function() return called end
 end
-local w,s=complete_fixture()
+local w,s,calls=appearance_fixture(false)
+local plan=w:prepare(s)
+assert(calls()==0 and plan.entries[#plan.entries].expected._OverwearMysetIndex==-1)
+print("PASS 关闭外观不触发外观适配器且猎人组合保留 -1")
+w,s,calls=appearance_fixture(true)
+plan=w:prepare(s)
+assert(calls()==1 and plan.entries[#plan.entries-1].kind=="appearance")
+assert(plan.entries[#plan.entries].expected._OverwearMysetIndex==0 and plan.overwear_slot==0)
+assert(w.write_count==0)
+print("PASS 开启外观在猎人组合之前登记并正确关联零号槽")
+w,s,calls=appearance_fixture(true,true)
+local ok,err=pcall(w.prepare,w,s)
+assert(not ok and tostring(err):find("外观组合没有空位",1,true) and w.write_count==0)
+print("PASS 外观满槽阻止整套入库，已有装备候选不写入")
+
+local w,s=appearance_fixture(false)
 s.items[8]={kind="talisman",empty=true,candidate={}}
 s.snapshot={data={_talismanParam={empty=true}}}
 local p=w:prepare(s)
@@ -74,3 +96,28 @@ assert(#p.allocated==7 and p.allocated[8]==nil and w.write_count==0)
 s.snapshot.data._talismanParam={unavailable=true}
 assert(not pcall(w.prepare,w,s))
 print("PASS 未装备护石保留空槽，缺少明确空位证据时拒绝（2 项）")
+for _,augment in ipairs({{false,false},{true,false},{true,true}}) do
+ for _,visual in ipairs({{false,false},{true,false},{true,true}}) do
+  local w,s=appearance_fixture(visual[1])
+  s.options.copy_augments=augment[1];s.options.allow_illegal_augments=augment[2];s.options.copy_weapon_visibility=visual[2]
+  local bindings=0
+  w.appearance.prepare_binding=function(_,plan)
+   bindings=bindings+1;assert(plan.source.options.copy_weapon_visibility==visual[2])
+   return {kind="visibility",remove_old_binding=not visual[2]}
+  end
+  local p=w:prepare(s)
+  assert(bindings==(visual[1] and 1 or 0) and w.write_count==0)
+  if visual[1] then assert(p.entries[#p.entries].remove_old_binding==not visual[2]) end
+ end
+end
+print("PASS 三种炼化模式 × 三种外观／显示选项的九组事务准备及关闭显示时旧绑定清理")
+
+local w,s=appearance_fixture(true)
+s.mode="appearance_only";s.options.appearance_only=true;s.items=nil
+local original=sdk.get_managed_singleton
+sdk.get_managed_singleton=function(name)assert(name~="snow.data.DataManager","仅外观不能访问装备箱");return original(name)end
+local plan=w:prepare(s)
+assert(#plan.entries==2 and plan.entries[1].kind=="appearance" and plan.entries[2].kind=="hunter")
+assert(plan.entries[2].expected._EquipMysetIndex==-1 and plan.entries[2].expected._ItemMysetIndex==-1)
+assert(w.write_count==0 and plan.slot==nil)
+print("PASS 仅外观事务不访问装备箱，仅预留外观与猎人组合，装备和道具关联为 -1")

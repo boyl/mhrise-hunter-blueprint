@@ -1,3 +1,4 @@
+json={dump_file=function() return true end}
 local callbacks,refreshes,steps={},0,0
 local view={open=false,ensure_font=function() end,set_open=function(self,v) self.open=v end}
 package.loaded["LoadoutClone.backend"]={new=function() return {} end}

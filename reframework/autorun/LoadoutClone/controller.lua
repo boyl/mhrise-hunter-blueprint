@@ -9,7 +9,8 @@ local function traceback(value,message)
 end
 local M={}
 function M.new(adapter)
-    return setmetatable({adapter=adapter,members={},state="initial",copy_augments=true,allow_illegal_augments=true,copy_appearance=false},{__index=M})
+    local appearance_available=type(adapter.supports_appearance)=="function" and adapter:supports_appearance()==true
+    return setmetatable({adapter=adapter,members={},state="initial",copy_augments=true,allow_illegal_augments=true,appearance_only=false,copy_appearance=false,copy_weapon_visibility=false,appearance_available=appearance_available},{__index=M})
 end
 function M:clear_selection()
     self.selected=nil;self.pending=nil;self.snapshot=nil;self.error=nil;self.job=nil;self.result=nil;self.progress=nil
@@ -52,15 +53,20 @@ function M:set_allow_illegal_augments(value)
 end
 function M:request_capture()
     if not self.selected or self.pending then return false end
-    self.pending={key=self.selected,session=self.session,options={copy_augments=self.copy_augments,allow_illegal_augments=self.allow_illegal_augments,copy_appearance=self.copy_appearance}};self.snapshot=nil;self.error=nil;self.result=nil;self.state="reading"
+    self.pending={key=self.selected,session=self.session,options={appearance_only=self.appearance_only,copy_augments=self.copy_augments,allow_illegal_augments=self.allow_illegal_augments,copy_appearance=self.copy_appearance,copy_weapon_visibility=self.copy_weapon_visibility}};self.snapshot=nil;self.error=nil;self.result=nil;self.state="reading"
     return true
 end
 function M:request_copy()
     if not self.selected or self.pending then return false end
-    local request={key=self.selected,session=self.session,action="copy",options={copy_augments=self.copy_augments,allow_illegal_augments=self.allow_illegal_augments,copy_appearance=self.copy_appearance}}
+    local request={key=self.selected,session=self.session,action="copy",options={appearance_only=self.appearance_only,copy_augments=self.copy_augments,allow_illegal_augments=self.allow_illegal_augments,copy_appearance=self.copy_appearance,copy_weapon_visibility=self.copy_weapon_visibility}}
     self.pending=request;self.snapshot=nil;self.error=nil;self.result=nil;self.state="preparing"
     self.job=coroutine.create(function()
         local plan=self.adapter:prepare(request.key,request.options)
+        if request.options.copy_appearance or request.options.copy_weapon_visibility then
+            assert(plan.options and plan.options.copy_appearance==request.options.copy_appearance
+                and plan.options.copy_weapon_visibility==request.options.copy_weapon_visibility
+                and (plan.options.appearance_only==true)==(request.options.appearance_only==true),"复制选项在准备期间丢失，已停止写入")
+        end
         coroutine.yield({phase="ready_to_commit"})
         assert(request.key==self.selected and request.session==self.session,"复制目标已变化")
         return self.adapter:commit(plan)
@@ -87,13 +93,32 @@ function M:step()
     if request.key~=self.selected or request.session~=self.session then return end
     local ok,result=xpcall(function() return self.adapter:capture(request.key) end,traceback)
     if not ok then self.state="error";self.error=tostring(result);self.snapshot=nil;return end
-    result.options={copy_augments=request.options.copy_augments,allow_illegal_augments=request.options.allow_illegal_augments,copy_appearance=request.options.copy_appearance}
+    result.options={appearance_only=request.options.appearance_only,copy_augments=request.options.copy_augments,allow_illegal_augments=request.options.allow_illegal_augments,copy_appearance=request.options.copy_appearance,copy_weapon_visibility=request.options.copy_weapon_visibility}
     self.snapshot=result;self.state="inspected"
 end
 function M:set_copy_appearance(value)
     assert(type(value)=="boolean","copy_appearance must be boolean")
     if value==self.copy_appearance then return end
+    if self.appearance_only and not value then return false end
     self.copy_appearance=value
+    if not value then self.copy_weapon_visibility=false end
+    self.pending=nil;self.snapshot=nil;self.error=nil;self.job=nil;self.result=nil;self.progress=nil
+    self.state=#self.members==0 and "empty" or "ready"
+end
+function M:set_copy_weapon_visibility(value)
+    assert(type(value)=="boolean","copy_weapon_visibility must be boolean")
+    if value and not self.copy_appearance then return false end
+    if value==self.copy_weapon_visibility then return true end
+    self.copy_weapon_visibility=value
+    self.pending=nil;self.snapshot=nil;self.error=nil;self.job=nil;self.result=nil;self.progress=nil
+    self.state=#self.members==0 and "empty" or "ready"
+    return true
+end
+function M:set_appearance_only(value)
+    assert(type(value)=="boolean")
+    if value==self.appearance_only then return end
+    self.appearance_only=value
+    if value then self.copy_appearance=true end
     self.pending=nil;self.snapshot=nil;self.error=nil;self.job=nil;self.result=nil;self.progress=nil
     self.state=#self.members==0 and "empty" or "ready"
 end

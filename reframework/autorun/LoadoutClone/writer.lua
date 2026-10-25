@@ -19,7 +19,7 @@ local function list(obj,max)
     local size=field(obj,"mSize");assert(size>=0 and size<=max,"inventory list bound")
     return field(obj,"mItems"),size
 end
-local function equipment_state(obj)
+local function equipment_state(obj,with_color)
     local out={}
     for _,key in ipairs({"_IdType","_IdVal","_BuildupPoint","_CustomEnable","_CustomCount","_CustomBuildupType","_BowgunCustomizeType","_PairInsectInventoryIndex","_HyakuryuDecoId","_IsLock","_IsSetGuildCard"}) do out[key]=field(obj,key) end
     out._PairInsectInventoryIndex=M.pair_index(obj)
@@ -29,6 +29,7 @@ local function equipment_state(obj)
     for i=0,count-1 do
         local row=get(i);out.augments[i+1]={field(row,"_Id"),field(row,"_ValueIndex"),field(row,"_SkillId")}
     end
+    if with_color then out.color=require("LoadoutClone.appearance_color").read(field(obj,"_HyakuryuColorData")) end
     return out
 end
 local function set_state(obj)
@@ -42,8 +43,8 @@ local function set_state(obj)
     end
     return out
 end
-function M.new(reader)
-    local self=setmetatable({reader=reader,native=Native.new(),write_count=0},{__index=M})
+function M.new(reader,appearance)
+    local self=setmetatable({reader=reader,native=Native.new(),write_count=0,appearance=appearance},{__index=M})
     self.transaction=Transaction.new(self)
     return self
 end
@@ -57,6 +58,28 @@ function M:backup(type_name,source)
     return out
 end
 function M:prepare(source)
+    if source.mode=="appearance_only" then
+        assert(source.options.appearance_only and source.options.copy_appearance and self.appearance and source.appearance,"仅外观候选不完整")
+        self.native.game_method_calls=0
+        local manager=assert(sdk.get_managed_singleton("snow.data.EquipDataManager"))
+        local plan={source=source,entries={},manager=manager,current=array(field(field(manager,"_PlEquipPack"),"_InventoryIndexList"))}
+        local appearance=self.appearance:prepare(source.appearance,plan)
+        plan.overwear_slot=appearance.slot;plan.entries[#plan.entries+1]=appearance
+        local hunter=Hunter.prepare(self.native,manager,-1,appearance.slot)
+        hunter.backup=self:backup(Hunter.type_name,hunter.dest)
+        plan.entries[#plan.entries+1]=hunter;plan.hunter_slot=hunter.slot
+        if self.appearance.prepare_binding then
+            local binding=self.appearance:prepare_binding(plan)
+            if source.options.copy_weapon_visibility then assert(binding,"显示状态绑定不可用") end
+            if binding then plan.entries[#plan.entries+1]=binding end
+        elseif source.options.copy_weapon_visibility then error("显示状态绑定不可用") end
+        return plan
+    end
+    local wants_appearance=source.options and source.options.copy_appearance==true
+    local wants_visibility=source.options and source.options.copy_weapon_visibility==true
+    assert(not wants_visibility or wants_appearance,"复制武器显示状态需要开启复制外观")
+    assert(not wants_appearance or (self.appearance and source.appearance),"外观候选未就绪，未写入任何装备")
+    assert(wants_appearance or source.appearance==nil,"外观选项与候选不一致")
     assert(#source.items==8,"完整装备候选缺失")
     for i=1,8 do
         local item=source.items[i]
@@ -66,6 +89,7 @@ function M:prepare(source)
         else assert(item.object,"装备候选包含空项") end
     end
     self.native.game_method_calls=0
+    if wants_appearance and self.appearance.prepare_equipment then self.appearance:prepare_equipment(source) end
     local data=assert(sdk.get_managed_singleton("snow.data.DataManager"))
     local manager=assert(sdk.get_managed_singleton("snow.data.EquipDataManager"))
     local box=field(data,"_PlEquipBox")
@@ -86,7 +110,10 @@ function M:prepare(source)
       if not item.empty then
         local dest=reserve(item.kind=="petalace" and "_LvBuffCageInventoryList" or "_WeaponArmorInventoryList")
         plan.allocated[i]=dest
-        plan.entries[#plan.entries+1]={kind="equipment",equipment_kind=item.kind,dest=dest,object=item.object,before=equipment_state(dest),backup=self:backup("snow.data.EquipmentInventoryData",dest),index=field(dest,"<InventoryIndex>k__BackingField")}
+        local with_color=wants_appearance and i==1 and self.appearance.tracks_weapon_color==true
+        local backup=self:backup("snow.data.EquipmentInventoryData",dest)
+        if with_color then require("LoadoutClone.appearance_objects").new(self.native):detach_weapon_color(backup) end
+        plan.entries[#plan.entries+1]={kind="equipment",equipment_kind=item.kind,with_color=with_color,dest=dest,object=item.object,before=equipment_state(dest,with_color),backup=backup,index=field(dest,"<InventoryIndex>k__BackingField")}
       end
     end
     if source.insect then
@@ -125,12 +152,29 @@ function M:prepare(source)
     assert(plan.slot,"配装列表没有空位")
     local dest=get_set(plan.slot)
     plan.entries[#plan.entries+1]={kind="loadout",dest=dest,before=set_state(dest),backup=self:backup("snow.equip.PlEquipMySetData",dest),plan=plan}
+    if wants_appearance then
+        local entry=self.appearance:prepare(source.appearance,plan)
+        assert(entry.kind=="appearance" and type(entry.slot)=="number" and entry.slot%1==0 and entry.slot>=0,"外观事务候选无效")
+        plan.overwear_slot=entry.slot
+        plan.entries[#plan.entries+1]=entry
+    end
     local hunter=Hunter.prepare(self.native,manager,plan.slot,plan.overwear_slot)
     hunter.backup=self:backup(Hunter.type_name,hunter.dest)
     plan.entries[#plan.entries+1]=hunter;plan.hunter_slot=hunter.slot
+    if wants_visibility then assert(type(self.appearance.prepare_binding)=="function","武器显示状态服务未就绪") end
+    if wants_appearance and self.appearance.prepare_binding then
+        local entry=self.appearance:prepare_binding(plan)
+        if wants_visibility then assert(entry and entry.kind=="visibility","武器显示状态绑定未就绪") end
+        if entry then plan.entries[#plan.entries+1]=entry end
+    end
     return plan
 end
 function M:assert_context(plan)
+    if plan.source.mode=="appearance_only" then
+        assert(sdk.get_managed_singleton("snow.data.EquipDataManager")==plan.manager,"装备管理器已变化")
+        self.appearance:assert_context(plan.source.appearance,plan)
+        return
+    end
     assert(self.reader:progression_state()==plan.source.progression,"当前角色大师等级开放状态已变化")
     local list=self.reader:list_members()
     assert(list.session==plan.source.session,"角色或大厅会话已变化")
@@ -138,6 +182,7 @@ function M:assert_context(plan)
     for _,key in ipairs({"_weaponParam","_armorParam","_talismanParam","_lvBuffParam"}) do assert(equal(current.data[key],plan.source.snapshot.data[key]),"目标配装已变化，请重试") end
     for _,key in ipairs({"isMRRelease","switchActionId","switchActionId_MR_1","switchActionId_MR_2"}) do assert(equal(current.data._equipStatusParam[key],plan.source.snapshot.data._equipStatusParam[key]),"目标替换技或大师等级开放状态已变化") end
     assert(sdk.get_managed_singleton("snow.data.EquipDataManager")==plan.manager,"装备管理器已变化")
+    if plan.source.appearance then self.appearance:assert_context(plan.source.appearance,plan) end
 end
 function M:apply(entry)
     local function begin_write()
@@ -145,15 +190,22 @@ function M:apply(entry)
         self.write_count=self.write_count+1
     end
     if entry.kind=="equipment" then
-        assert(equal(equipment_state(entry.dest),entry.before),"预留装备槽已变化")
+        assert(equal(equipment_state(entry.dest,entry.with_color),entry.before),"预留装备槽已变化")
         begin_write()
         self:copy("snow.data.EquipmentInventoryData",entry.dest,entry.object)
+        if entry.with_color then require("LoadoutClone.appearance_objects").new(self.native):detach_weapon_color(entry.dest) end
         if entry.equipment_kind=="talisman" then self.native:check_talisman(entry.dest) end
         assert(field(entry.dest,"<InventoryIndex>k__BackingField")==entry.index,"库存下标被改变")
     elseif entry.kind=="decoration" then
         assert(field(entry.dest,"_Id")==entry.before.id and field(entry.dest,"_Num")==entry.before.count,"珠子库存已变化")
         begin_write()
         self:copy("snow.data.DecorationsInventoryData",entry.dest,entry.object)
+    elseif entry.kind=="appearance" then
+        assert(self.appearance,"外观事务适配器缺失"):apply(entry)
+        self.write_count=self.write_count+1
+    elseif entry.kind=="visibility" then
+        self.appearance:apply_binding(entry)
+        self.write_count=self.write_count+1
     elseif entry.kind=="hunter" then
         assert(equal(Hunter.state(entry.dest),entry.before),"预留猎人组合已变化")
         begin_write()
@@ -187,27 +239,35 @@ function M:verify(plan)
     if self.fault_on_verify then error("development verification failure") end
     for _,entry in ipairs(plan.entries) do
         if entry.kind=="equipment" then
-            local expected=equipment_state(entry.object)
-            local actual=equipment_state(entry.dest)
+            local expected=equipment_state(entry.object,entry.with_color)
+            local actual=equipment_state(entry.dest,entry.with_color)
             if plan.insect and entry.dest==plan.allocated[1] then expected._PairInsectInventoryIndex=field(plan.insect,"<InventoryIndex>k__BackingField") end
             assert(equal(actual,expected),"新增装备回读不一致")
         elseif entry.kind=="decoration" then
             assert(field(entry.dest,"_Id")==entry.expected.id and field(entry.dest,"_Num")==entry.expected.count,"珠子回读不一致")
+        elseif entry.kind=="appearance" then self.appearance:verify(entry)
+        elseif entry.kind=="visibility" then self.appearance:verify_binding(entry)
         elseif entry.kind=="hunter" then assert(equal(Hunter.state(entry.dest),entry.expected),"猎人组合回读不一致")
         else assert(equal(set_state(entry.dest),entry.expected),"配装登记回读不一致") end
     end
     assert(equal(array(field(field(plan.manager,"_PlEquipPack"),"_InventoryIndexList")),plan.current),"当前穿戴被改变")
-    return {slot=plan.slot+1,hunter_slot=plan.hunter_slot+1,name="大厅复制 "..(plan.hunter_slot+1)}
+    if plan.source and plan.source.appearance then self.appearance:verify_current(plan) end
+    return {slot=plan.slot and plan.slot+1 or nil,hunter_slot=plan.hunter_slot+1,name="大厅复制 "..(plan.hunter_slot+1),overwear_slot=plan.overwear_slot and plan.overwear_slot+1 or nil,options=plan.source.options}
 end
 function M:restore(entry)
     if not entry.write_started then return end
     self.restore_count=(self.restore_count or 0)+1
+    if entry.kind=="appearance" then return assert(self.appearance,"外观恢复适配器缺失"):restore(entry) end
+    if entry.kind=="visibility" then return self.appearance:restore_binding(entry) end
     self:copy(entry.type_name or (entry.kind=="equipment" and "snow.data.EquipmentInventoryData" or entry.kind=="decoration" and "snow.data.DecorationsInventoryData" or "snow.equip.PlEquipMySetData"),entry.dest,entry.backup)
+    if entry.with_color then require("LoadoutClone.appearance_objects").new(self.native):detach_weapon_color(entry.dest) end
     if entry.equipment_kind=="talisman" then self.native:check_talisman(entry.dest) end
 end
 function M:verify_restored(entry)
     if not entry.write_started then return end
-    if entry.kind=="equipment" then assert(equal(equipment_state(entry.dest),entry.before),"装备恢复回读失败")
+    if entry.kind=="visibility" then self.appearance:verify_binding_restored(entry)
+    elseif entry.kind=="appearance" then self.appearance:verify_restored(entry)
+    elseif entry.kind=="equipment" then assert(equal(equipment_state(entry.dest,entry.with_color),entry.before),"装备恢复回读失败")
     elseif entry.kind=="decoration" then assert(field(entry.dest,"_Id")==entry.before.id and field(entry.dest,"_Num")==entry.before.count,"珠子恢复回读失败")
     elseif entry.kind=="hunter" then assert(equal(Hunter.state(entry.dest),entry.before),"猎人组合恢复回读失败")
     else assert(equal(set_state(entry.dest),entry.before),"配装恢复回读失败") end
@@ -219,9 +279,9 @@ function M:execute(plan)
         return {ok=false,code="locked",error="上次写入未确认恢复，已锁定。请先检查备份与恢复记录。"}
     end
     self.write_count=0;self.restore_count=0
-    json.dump_file("LoadoutClone/transaction.json",{status="in_progress",source=plan.source.key})
+    json.dump_file("LoadoutClone/transaction.json",{status="in_progress",source=plan.source.key,options=plan.options})
     local result=self.transaction:execute(plan)
-    json.dump_file("LoadoutClone/transaction.json",{status=result.ok and "complete" or result.code=="recovery_failed" and "recovery_failed" or "restored",writes=self.write_count,restores=self.restore_count,result=result})
+    json.dump_file("LoadoutClone/transaction.json",{status=result.ok and "complete" or result.code=="recovery_failed" and "recovery_failed" or "restored",writes=self.write_count,restores=self.restore_count,result=result,options=plan.options})
     return result
 end
 M.equal=equal

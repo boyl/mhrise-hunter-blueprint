@@ -1,3 +1,12 @@
+-- debug 库在部分运行环境不可用；错误处理自身不能阻断绘制或回滚。
+local native_traceback=type(debug)=="table" and type(debug.traceback)=="function" and debug.traceback
+local function traceback(value,message)
+    if native_traceback then
+        if type(value)=="thread" then return native_traceback(value,message) end
+        return native_traceback(value)
+    end
+    return tostring(type(value)=="thread" and message or value)
+end
 -- 开发用：只调用已核实签名的原生读取器，独立统计调用次数。
 local M={}
 local function field(obj,key)
@@ -35,6 +44,7 @@ function M.run(request,report)
             local updated=require("LoadoutClone.controller")
             for k,v in pairs(updated) do old_controller[k]=v end
             old_controller.copy_appearance=false
+            old_controller.copy_weapon_visibility=false
             package.loaded["LoadoutClone.controller"]=old_controller
         end
         return {reloaded=true}
@@ -129,7 +139,7 @@ function M.run(request,report)
         local members=reader:list_members().members
         local target=assert(members[(request.member or 1)],"no selected member")
         local planner=require("LoadoutClone.planner").new(reader)
-        local ok,plan=xpcall(function() return planner:prepare(target.key,{copy_augments=request.copy_augments~=false,allow_illegal_augments=request.allow_illegal==true}) end,debug.traceback)
+        local ok,plan=xpcall(function() return planner:prepare(target.key,{copy_augments=request.copy_augments~=false,allow_illegal_augments=request.allow_illegal==true}) end,traceback)
         report.game_method_calls=planner.native.game_method_calls
         report.transient_objects=8;report.transient_mutations=1
         assert(ok,plan)

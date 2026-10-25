@@ -1,11 +1,27 @@
 local Backend=require("LoadoutClone.backend")
 local Controller=require("LoadoutClone.controller")
 local View=require("LoadoutClone.view")
-local controller=Controller.new(Backend.new())
+local ok,backend=pcall(function()
+    return Backend.new(require("LoadoutClone.appearance_runtime").new)
+end)
+local appearance_error
+if not ok then
+    appearance_error=tostring(backend)
+    log.error("[HunterBlueprint appearance init] "..appearance_error)
+    backend=Backend.new()
+end
+local controller=Controller.new(backend)
+controller.appearance_error=appearance_error
 local view=View.new()
 local next_refresh=0
 local previous_error=nil
+local last_runtime_state
 re.on_application_entry("LateUpdateBehavior",function()
+    local observed=table.concat({tostring(controller.appearance_only),tostring(controller.copy_appearance),tostring(controller.copy_weapon_visibility),tostring(controller.selected),tostring(controller.state)},"/")
+    if observed~=last_runtime_state then
+        last_runtime_state=observed
+        json.dump_file("LoadoutClone/runtime-state.json",{appearance_only=controller.appearance_only,copy_appearance=controller.copy_appearance,copy_weapon_visibility=controller.copy_weapon_visibility,selected=controller.selected,state=controller.state,pending_options=controller.pending and controller.pending.options})
+    end
     if not view.open and not controller.pending then return end
     if os.clock()>=next_refresh then controller:refresh();next_refresh=os.clock()+1 end
     controller:step()
@@ -21,4 +37,4 @@ re.on_draw_ui(function()
     if changed then view:set_open(value) end
     if view.font then imgui.pop_font() end
 end)
-log.info("[LoadoutClone 1.0.2] loaded; panel closed until explicitly opened")
+log.info("[LoadoutClone 1.1.0] loaded; panel closed until explicitly opened")

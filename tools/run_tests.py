@@ -13,6 +13,7 @@ for path in sorted((root / "tests").glob("*_spec.lua")):
         print('SKIP development-only diagnostic_spec.lua in restricted runtime')
         continue
     lua = LuaRuntime(unpack_returned_tuples=True)
+    lua.globals().test_root = root.as_posix() + "/"
     if args.debug_mode == 'absent':
         lua.execute('debug=nil')
     elif args.debug_mode == 'no-traceback':

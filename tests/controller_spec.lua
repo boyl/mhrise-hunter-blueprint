@@ -83,12 +83,11 @@ test("准备后改变外观选项取消提交",function()
     c.adapter.commit=function() commits=commits+1;return {ok=true,result={}} end
     c:refresh();c:select("A");c:request_copy();c:step();c:set_copy_appearance(true);c:step();eq(commits,0);eq(c.selected,"A")
 end)
-print("TOTAL "..count)
-
-test("协程失败保留实际原因并清理任务",function()
- local c=setup();c:refresh();c:select("A")
- c.adapter.prepare=function() error("prepare sentinel") end
- c:request_copy();c:step()
- eq(c.state,"error");eq(c.pending,nil);eq(c.job,nil)
- assert(c.error:find("prepare sentinel",1,true),c.error)
+test("协程准备失败保留实际错误并清理任务",function()
+    local c=setup();c:refresh();c:select("A")
+    c.adapter.prepare=function() error("prepare sentinel") end
+    c:request_copy();c:step()
+    eq(c.state,"error");eq(c.pending,nil);eq(c.job,nil)
+    assert(c.error:find("prepare sentinel",1,true),c.error)
 end)
+print("TOTAL "..count)

@@ -1,6 +1,10 @@
 -- 固定范围的开发诊断扩展；每个请求只执行一个白名单步骤。
 local M={}
 function M.run(request,report,checkpoint)
+    if request.step=="appearance_contract" then
+        package.loaded["LoadoutClone.appearance_contract"]=nil
+        return require("LoadoutClone.appearance_contract").run(request,report,checkpoint)
+    end
     if request.step=="release_matrix" then
         package.loaded["LoadoutClone.release_matrix"]=nil
         return require("LoadoutClone.release_matrix").run(request,report,checkpoint)

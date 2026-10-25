@@ -30,8 +30,8 @@ end
 local function yield_phase(phase,part)
     if coroutine.isyieldable() then coroutine.yield({phase=phase,part=part}) end
 end
-function M.new(reader)
-    return setmetatable({reader=reader,native=Native.new()},{__index=M})
+function M.new(reader,appearance)
+    return setmetatable({reader=reader,native=Native.new(),appearance=appearance},{__index=M})
 end
 function M.validate_actions(status,local_mr)
     assert(type(local_mr)=="boolean" and type(status.isMRRelease)=="boolean","大师等级开放状态尚未完整加载")
@@ -72,6 +72,18 @@ function M.talisman_skills(source_ids,residual)
 end
 function M:prepare(key,options)
     self.native.game_method_calls=0
+    if options.appearance_only then
+        assert(self.appearance and options.copy_appearance,"仅复制外观需要外观服务")
+        local list=self.reader:list_members()
+        local target
+        for _,member in ipairs(list.members) do if member.key==key then target=member end end
+        assert(target,"目标猎人已离开")
+        local appearance=self.appearance:capture(target,list.session)
+        assert(not appearance.snapshot.weapon_color.enabled,"仅复制外观暂不支持百龙武器染色，未写入任何装备")
+        return {mode="appearance_only",source=target,session=list.session,options=clone(options),appearance=appearance}
+    end
+    assert(not options.copy_weapon_visibility or options.copy_appearance,"复制武器显示状态需要开启复制外观")
+    assert(not options.copy_appearance or self.appearance,"外观复制尚未完成实机验证，当前版本未开放")
     local snapshot=self.reader:capture(key)
     assert(snapshot.schema==1,"不支持的快照版本")
     assert(type(snapshot.data._armorParam)=="table" and #snapshot.data._armorParam==5,"目标五件防具尚未完整加载")
@@ -82,6 +94,7 @@ function M:prepare(key,options)
     local actions,red,blue=M.validate_actions(status,progression)
     if not self.catalog then self.catalog=self.native:read_catalog() end
     local plan={source=snapshot.source,session=snapshot.session,options=clone(options),items={},snapshot=snapshot,red=red,blue=blue,actions=actions,progression=progression}
+    if options.copy_appearance then plan.appearance=self.appearance:capture(snapshot.source,snapshot.session) end
     local weapon=clone(data._weaponParam)
     local gems,reason=Decorations.resolve_weapon(weapon,self.catalog.decorations)
     assert(gems,"武器珠子无法唯一还原："..tostring(reason))

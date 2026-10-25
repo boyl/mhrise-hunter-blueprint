@@ -1,6 +1,6 @@
-[b]1.0.2 修复 / Fix[/b]
-修复缺少 Lua debug 库时面板空白及错误处理失败；保留复制规则与存档格式。
-Fixes blank panels and error handling when Lua debug is unavailable. Copy rules and save formats are unchanged.
+[b]1.1.0 · 外观复制 / Appearance copying[/b]
+新增整套配装附带外观、仅复制外观，以及可选武器显示状态。仅复制外观保留自己的装备、珠子及替换技，不再受基础孔位限制。
+Copy layered weapons, armor and pigments with full loadouts, or copy appearance only while keeping your own equipment and Switch Skills. Optional weapon visibility applies through the linked Hunter Loadout.
 
 [size=5][b]Hunter Blueprint · 猎人蓝图[/b][/size]
 Copy a lobby hunter's equipment, decorations, talisman, Switch Skills and optional augments into a new Hunter Loadout. Chinese interface.
@@ -10,13 +10,17 @@ Copy a lobby hunter's equipment, decorations, talisman, Switch Skills and option
 [list]
 [*]Creates independent weapons, armor, talismans, petalaces and applicable kinsects. You do not need to own the source equipment.
 [*]Includes regular and Rampage decorations and older weapons' Ramp-Up skills. An unequipped talisman remains empty.
-[*]Both hunters must have the same Master Rank unlock state. Pre-MR hunters copy legacy Switch Skills; MR hunters copy both red and blue scrolls.
-[*]仅允许双方大师等级开放状态相同的猎人互相复制：未开放时复制基础替换技，已开放时复制朱／苍书；保留旧武器百龙强化及未装备的护石空槽。
-[*]Saves to the last empty Equipment Loadout and Hunter Loadout slots. Keeps current equipment unchanged; items and layered armor are not linked.
+[*]Full equipment copying requires both hunters to have the same Master Rank unlock state. Pre-MR hunters copy legacy Switch Skills; MR hunters copy both red and blue scrolls.
+[*]完整装备复制仅允许双方大师等级开放状态相同的猎人互相复制：未开放时复制基础替换技，已开放时复制朱／苍书；保留旧武器百龙强化及未装备的护石空槽。
+[*]Saves to the last empty Equipment Loadout and Hunter Loadout slots. Keeps current equipment unchanged; items are not linked; optionally links a new layered loadout.
 [*]Optional augment copying, with normal-rule and relaxed reconstruction modes. Both Copy augments and Allow illegal augments are enabled by default. Relaxed mode does not necessarily produce illegal results: it tries within-budget solutions first.
 [*]Checks source completeness, capacity and resulting equipment. Recoverable write errors roll back; unresolved recovery blocks further writes.
 [/list]
 新增完整装备，无需事先持有；保存到最后的空组合槽，不覆盖已有组合。复制炼化与“允许非法炼化（不一定实际非法）”默认开启，仍检查最终效果。取消炼化后若基础孔位装不下原珠子，会停止。
+
+[size=4][b]Appearance options / 外观选项[/b][/size]
+复制外观与武器显示状态默认关闭。勾选“仅复制外观”后，只新增外观组合及不关联装备／道具的猎人个人组合，不受大师等级状态或珠子孔位限制。使用猎人个人组合才能应用可选的武器显示绑定，直接选择外观组合不触发该扩展。
+Appearance and weapon visibility copying default to off. Appearance-only mode creates layered and Hunter Loadouts without linking equipment or items, and skips equipment/progression checks. Apply the Hunter Loadout to use the optional visibility binding.
 
 [size=4][b]Requirements / 前置[/b][/size]
 Windows Steam Monster Hunter Rise: Sunbreak. Tested game build: 17920865.
@@ -31,25 +35,26 @@ Use the framework's dinput8.dll in the game root for non-VR play. Source code ar
 [*]In Steam, use Properties → Installed Files → Browse to locate MonsterHunterRise.exe. 从 Steam 浏览游戏本地文件。
 [*]Install REFramework, then merge this archive's reframework folder into that game folder. 不要多套一层压缩包目录。
 [*]Enter your character and a multiplayer lobby. Open REFramework (default: Insert), then Script Generated UI → 猎人蓝图：显示面板.
-[*]Select a hunter, choose the options and click 复制所选配装. Find the resulting 大厅复制 N in the item box's Hunter Loadouts. 在道具箱的猎人个人组合中使用。
+[*]Select a hunter, choose the options and click 复制所选配装, or enable 仅复制外观 and click 复制所选外观. Find the resulting 大厅复制 N in the item box's Hunter Loadouts. 在道具箱的猎人个人组合中使用。
 [/list]
 [code]MonsterHunterRise/
   MonsterHunterRise.exe
   dinput8.dll                     (REFramework)
   reframework/
     autorun/LoadoutClone.lua
-    autorun/LoadoutClone/         (11 modules)
+    autorun/LoadoutClone/         (22 modules)
     fonts/NotoSansSC-Regular.otf[/code]
 
 [size=4][b]Upgrade / Uninstall · 升级与卸载[/b][/size]
-Exit the game before replacing the entry script and modules. Keep reframework/data/LoadoutClone and its recovery records.
+Exit the game before replacing the entry script and modules. Keep reframework/data/LoadoutClone, its recovery records and appearance-visibility.json. The latter stores per-character weapon visibility bindings and should also be copied when moving to another computer.
 To uninstall, remove only autorun/LoadoutClone.lua and autorun/LoadoutClone/. Do not remove the shared framework or a font used by other mods. Created equipment and loadouts remain in your save.
-升级保留 data/LoadoutClone 的恢复记录。卸载只移除本 Mod 脚本，不删除已写入存档的装备。旧开发版 config.json 若明确关闭 write_enabled，仍会禁止写入；首次安装不需要该配置。
+升级保留 data/LoadoutClone 的恢复记录及 appearance-visibility.json 显示绑定。卸载后已保存的装备和外观组合仍在，武器显示绑定不再自动应用。卸载只移除本 Mod 脚本，不删除已写入存档的装备。旧开发版 config.json 若明确关闭 write_enabled，仍会禁止写入；首次安装不需要该配置。
 
 [size=4][b]Scope / 已知范围[/b][/size]
-Layered armor copying is not included in 1.0.0. Original augment rows are not available remotely, so reconstruction targets equivalent final effects; internal rows can differ. Normal mode uses conservative rules and can reject some legitimate special augments. Ambiguous decorations or incomplete remote data are rejected. Wait for a hunter's data to finish synchronizing after an equipment change.
-本版没有外观复制。正常模式失败不代表对方装备非法；无法确认等效结果时不猜测。回滚针对可恢复的 Lua 错误，不承诺断电、强制结束或原生崩溃时恢复。
+Original augment rows are not available remotely, so reconstruction targets equivalent final effects; internal rows can differ. Normal mode uses conservative rules and can reject some legitimate special augments. Ambiguous decorations or incomplete remote data are rejected. Wait for a hunter's data to finish synchronizing after an equipment change.
+仅外观模式暂不支持百龙武器专属染色，来源启用时明确拒绝；整套模式可随新建武器保存。Appearance-only mode rejects enabled Rampage weapon dye, which native layered loadouts cannot store. Full-copy mode can retain it on the new weapon.
+正常模式失败不代表对方装备非法；无法确认等效结果时不猜测。回滚针对可恢复的 Lua 错误，不承诺断电、强制结束或原生崩溃时恢复。
 
-Validated: three augment modes, real commits and rollback, basic construction of 14 weapon families, talisman effective fields, both scrolls, loadout persistence and kinsect link persistence. This is not exhaustive coverage of every weapon ID or augment combination.
+Validated: three augment modes, real commits and rollback, basic construction of 14 weapon families, talisman effective fields, both scrolls, loadout persistence and kinsect link persistence; appearance/visibility switching, appearance-only use, and transactional rollback. This is not exhaustive coverage of every weapon ID or augment combination.
 
 [url=https://github.com/boyl/mhrise-hunter-blueprint]Source and full documentation / 源码及完整说明[/url]

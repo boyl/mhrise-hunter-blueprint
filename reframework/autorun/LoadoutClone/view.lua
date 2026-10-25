@@ -43,8 +43,8 @@ function M:set_open(value)
     if value then self.collapsed=false;self.resize=true end
 end
 function M:body(controller,width)
-    wrapped("选择猎人，复制完整配装",width,COLOR.heading)
-    wrapped("新增装备与珠子，保存为猎人个人组合。当前穿着不变。",width,COLOR.muted)
+    wrapped(controller.appearance_only and "选择猎人，单独复制外观" or "选择猎人，复制完整配装",width,COLOR.heading)
+    wrapped(controller.appearance_only and "保存外观及猎人个人组合，保留自己的装备与替换技。" or "新增装备与珠子，保存为猎人个人组合。当前穿着不变。",width,COLOR.muted)
     heading("01  大厅猎人  ·  "..#controller.members.." 人")
     if #controller.members==0 then
         wrapped("暂无其他猎人，加入多人大厅后自动更新。",width,COLOR.muted)
@@ -63,6 +63,11 @@ function M:body(controller,width)
         imgui.spacing()
     end
     heading("02  复制选项")
+    if controller.appearance_available then
+        local changed_only,only=imgui.checkbox("仅复制外观",controller.appearance_only==true)
+        if changed_only then controller:set_appearance_only(only) end
+    end
+    if not controller.appearance_only then
     local changed,value=imgui.checkbox("复制炼化（武器与防具）",controller.copy_augments)
     if changed then controller:set_copy_augments(value) end
     imgui.spacing()
@@ -71,9 +76,24 @@ function M:body(controller,width)
         if changed_illegal then controller:set_allow_illegal_augments(illegal) end
         wrapped(controller.allow_illegal_augments and "放宽生成规则，优先预算内还原；仍核对最终效果。" or "仅按正常生成规则还原，无解时停止。",width,COLOR.muted)
     else wrapped("保留基础装备；珠子须适配基础孔位。",width,COLOR.muted) end
+    else wrapped("只保存幻化与防具染色，不复制装备、珠子或替换技。",width,COLOR.muted) end
+    if controller.appearance_error then wrapped("外观组件未就绪："..controller.appearance_error,width,COLOR.muted) end
+    if controller.appearance_available then
+        space()
+        local changed_appearance,appearance=false,true
+        if not controller.appearance_only then changed_appearance,appearance=imgui.checkbox("复制外观（幻化与染色）",controller.copy_appearance) end
+        if changed_appearance then controller:set_copy_appearance(appearance) end
+        wrapped("新增外观组合并关联猎人个人组合，当前外观不变。",width,COLOR.muted)
+        if controller.copy_appearance then
+            imgui.spacing()
+            local changed_visibility,visibility=imgui.checkbox("复制武器显示状态",controller.copy_weapon_visibility)
+            if changed_visibility then controller:set_copy_weapon_visibility(visibility) end
+            wrapped("切换组合时应用对方的显示／隐藏状态；不勾选则保留自己的设置。",width,COLOR.muted)
+        end
+    end
     space();imgui.separator();space()
     if controller.selected and not controller.pending then
-        if imgui.button("复制所选配装",{width,48}) then controller:request_copy() end
+        if imgui.button(controller.appearance_only and "复制所选外观" or "复制所选配装",{width,48}) then controller:request_copy() end
     else
         wrapped(controller.pending and "正在读取与校验，请稍候……" or "先在上方选择一位猎人",width,COLOR.muted)
     end

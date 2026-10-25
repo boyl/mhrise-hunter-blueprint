@@ -34,3 +34,12 @@ view:draw(controller)
 assert(controller.selected=="hunter-A" and calls["选择  |  测试猎人\nMR 50   /   HR 100"],"有成员且缺少 radio_button API 时必须可以选择")
 assert(calls.window==calls.ended)
 print("PASS 当前框架无 radio_button 时玩家列表仍可绘制与选择（1 项）")
+local options={}
+imgui.checkbox=function(label,value) options[label]=true;return label=="复制外观（幻化与染色）",not value end
+click=nil;view:body(controller,580)
+assert(not options["复制外观（幻化与染色）"],"未验收适配器不得开放外观复选框")
+controller.appearance_available=true;controller.copy_appearance=false
+controller.set_copy_appearance=function(self,value) self.copy_appearance=value end
+view:body(controller,580)
+assert(options["复制外观（幻化与染色）"] and controller.copy_appearance)
+print("PASS 外观菜单能力门禁与复选框事件（2 项）")
