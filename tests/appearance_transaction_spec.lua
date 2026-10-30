@@ -3,7 +3,7 @@ local Service=require("LoadoutClone.appearance_service")
 local function copy(v) if type(v)~="table" then return v end;local o={};for k,x in pairs(v) do o[k]=copy(x) end;return o end
 package.loaded["LoadoutClone.native"]={new=function() return {} end,field=function(o,k) return o[k] end,array=function(v) return v end}
 local Writer=require("LoadoutClone.writer")
-json={load_file=function() return nil end,dump_file=function() end}
+json={load_file=function() return nil end,dump_file=function() return true end}
 local total=0
 local function test(name,fn) fn();total=total+1;print("PASS "..name) end
 local function fixture(fault)

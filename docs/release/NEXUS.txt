@@ -1,6 +1,7 @@
-[b]1.1.0 · 外观复制 / Appearance copying[/b]
-新增整套配装附带外观、仅复制外观，以及可选武器显示状态。仅复制外观保留自己的装备、珠子及替换技，不再受基础孔位限制。
-Copy layered weapons, armor and pigments with full loadouts, or copy appearance only while keeping your own equipment and Switch Skills. Optional weapon visibility applies through the linked Hunter Loadout.
+[b]1.1.1 · 花链复用与清理 / Petalace fixes[/b]
+[color=#ff9900][b]使用前建议备份存档。Back up your save before use.[/b][/color]
+已有同款花链直接复用。新增显式历史重复清理与空位整理，同步当前佩戴和配装引用，不改动其他装备索引。先扫描并验证回滚，再最终确认；未确认不保留清理结果。已实测保存重启后保留。
+Reuses matching petalaces. Adds explicit duplicate cleanup and gap removal with equipped/loadout references preserved. Run scan and rollback validation before final confirmation. Verified after saving and restarting.
 
 [size=5][b]Hunter Blueprint · 猎人蓝图[/b][/size]
 Copy a lobby hunter's equipment, decorations, talisman, Switch Skills and optional augments into a new Hunter Loadout. Chinese interface.
@@ -8,7 +9,7 @@ Copy a lobby hunter's equipment, decorations, talisman, Switch Skills and option
 
 [size=4][b]Features / 功能[/b][/size]
 [list]
-[*]Creates independent weapons, armor, talismans, petalaces and applicable kinsects. You do not need to own the source equipment.
+[*]Creates independent weapons, armor, talismans and applicable kinsects. Reuses an owned matching petalace, creating one only when missing. You do not need to own the source equipment.
 [*]Includes regular and Rampage decorations and older weapons' Ramp-Up skills. An unequipped talisman remains empty.
 [*]Full equipment copying requires both hunters to have the same Master Rank unlock state. Pre-MR hunters copy legacy Switch Skills; MR hunters copy both red and blue scrolls.
 [*]完整装备复制仅允许双方大师等级开放状态相同的猎人互相复制：未开放时复制基础替换技，已开放时复制朱／苍书；保留旧武器百龙强化及未装备的护石空槽。

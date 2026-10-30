@@ -92,7 +92,7 @@ function M:body(controller,width)
         end
     end
     space();imgui.separator();space()
-    if controller.selected and not controller.pending then
+    if controller.selected and not controller.pending and not (controller.cleanup and controller.cleanup.job) then
         if imgui.button(controller.appearance_only and "复制所选外观" or "复制所选配装",{width,48}) then controller:request_copy() end
     else
         wrapped(controller.pending and "正在读取与校验，请稍候……" or "先在上方选择一位猎人",width,COLOR.muted)
@@ -119,6 +119,28 @@ function M:body(controller,width)
             wrapped("未找到正常生成方案，不代表来源一定非法。",width,COLOR.muted)
             wrapped("可勾选“允许非法炼化”后重试。",width,COLOR.muted)
         else wrapped("可重新选择猎人后重试。详情见 REFramework 日志。",width,COLOR.muted) end
+    end
+    local cleanup=controller.cleanup
+    if cleanup then
+        heading("03  清理与整理花链")
+        wrapped("仅清理同款重复花链，保留当前佩戴、锁定和名片使用项；自动整理空位并修正组合引用。",width,COLOR.muted)
+        if cleanup.job then wrapped("正在检查与处理，请稍候……",width,COLOR.heading)
+        elseif controller.pending then wrapped("请等待配装复制完成。",width,COLOR.muted)
+        else
+            if imgui.button("扫描重复花链",{width,32}) then cleanup:start("scan") end
+            if cleanup.preview then
+                local plan=cleanup.preview.plan
+                wrapped("可清理 "..#plan.remove.." 件，需更新 "..#plan.references.." 套组合。"..(plan.needs_layout and " 存在待整理空位。" or ""),width,COLOR.heading)
+                if #plan.remove>0 or plan.needs_layout then
+                    if not cleanup.validated then
+                        wrapped("先备份存档。首次需验证真实写入后完整恢复，验证成功才开放删除。",width,COLOR.muted)
+                        if imgui.button("验证清理并回滚（不保留删除）",{width,32}) then cleanup:start("validate") end
+                    elseif imgui.button("确认清理并整理花链",{width,36}) then cleanup:start("cleanup") end
+                end
+            end
+        end
+        if cleanup.result then wrapped(cleanup.result,width,COLOR.success) end
+        if cleanup.error then wrapped(cleanup.error:match("[^\n]+") or cleanup.error,width,COLOR.error) end
     end
 end
 function M:ensure_font()

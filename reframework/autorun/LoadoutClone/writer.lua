@@ -95,6 +95,21 @@ function M:prepare(source)
     local box=field(data,"_PlEquipBox")
     local plan={source=source,entries={},manager=manager,allocated={},current=array(field(field(manager,"_PlEquipPack"),"_InventoryIndexList"))}
     local reserved={}
+    plan.reused={}
+    local function existing_petalace(candidate)
+        local inventory=field(box,"_LvBuffCageInventoryList")
+        local items,size=list(inventory,5000)
+        local kind,id=field(candidate,"_IdType"),field(candidate,"_IdVal")
+        if kind==0 then return nil end
+        for i=0,size-1 do
+            local obj=items:get_element(i)
+            if field(obj,"_IdType")==kind and field(obj,"_IdVal")==id then
+                assert(not self.native:call("snow.data.EquipmentInventoryData","isEmpty()",obj),"已有花链状态不一致")
+                plan.reused[#plan.reused+1]={inventory=inventory,position=i,dest=obj,kind=kind,id=id,index=field(obj,"<InventoryIndex>k__BackingField")}
+                return obj
+            end
+        end
+    end
     local function reserve(list_name)
         local items,size=list(field(box,list_name),5000)
         for i=0,size-1 do
@@ -108,12 +123,15 @@ function M:prepare(source)
     end
     for i,item in ipairs(source.items) do
       if not item.empty then
-        local dest=reserve(item.kind=="petalace" and "_LvBuffCageInventoryList" or "_WeaponArmorInventoryList")
+        local existing=item.kind=="petalace" and existing_petalace(item.object)
+        local dest=existing or reserve(item.kind=="petalace" and "_LvBuffCageInventoryList" or "_WeaponArmorInventoryList")
         plan.allocated[i]=dest
+        if not existing then
         local with_color=wants_appearance and i==1 and self.appearance.tracks_weapon_color==true
         local backup=self:backup("snow.data.EquipmentInventoryData",dest)
         if with_color then require("LoadoutClone.appearance_objects").new(self.native):detach_weapon_color(backup) end
         plan.entries[#plan.entries+1]={kind="equipment",equipment_kind=item.kind,with_color=with_color,dest=dest,object=item.object,before=equipment_state(dest,with_color),backup=backup,index=field(dest,"<InventoryIndex>k__BackingField")}
+        end
       end
     end
     if source.insect then
@@ -169,7 +187,16 @@ function M:prepare(source)
     end
     return plan
 end
+function M:verify_reused(plan)
+    for _,ref in ipairs(plan.reused or {}) do
+        local items,size=list(ref.inventory,5000)
+        assert(ref.position<size and items:get_element(ref.position)==ref.dest
+            and field(ref.dest,"_IdType")==ref.kind and field(ref.dest,"_IdVal")==ref.id
+            and field(ref.dest,"<InventoryIndex>k__BackingField")==ref.index,"复用花链已变化，请重试")
+    end
+end
 function M:assert_context(plan)
+    self:verify_reused(plan)
     if plan.source.mode=="appearance_only" then
         assert(sdk.get_managed_singleton("snow.data.EquipDataManager")==plan.manager,"装备管理器已变化")
         self.appearance:assert_context(plan.source.appearance,plan)
@@ -211,6 +238,7 @@ function M:apply(entry)
         begin_write()
         self:copy(Hunter.type_name,entry.dest,entry.object)
     elseif entry.kind=="loadout" then
+        self:verify_reused(entry.plan)
         assert(equal(set_state(entry.dest),entry.before),"配装槽已变化")
         begin_write()
         local plan=entry.plan
@@ -236,6 +264,7 @@ function M:apply(entry)
     if self.fault_after and self.write_count==self.fault_after then error("development injected failure") end
 end
 function M:verify(plan)
+    self:verify_reused(plan)
     if self.fault_on_verify then error("development verification failure") end
     for _,entry in ipairs(plan.entries) do
         if entry.kind=="equipment" then
@@ -275,13 +304,22 @@ end
 function M:execute(plan)
     self.native.game_method_calls=0
     local previous=json.load_file("LoadoutClone/transaction.json")
-    if previous and (previous.status=="in_progress" or previous.status=="recovery_failed") then
+    local cleanup=json.load_file("LoadoutClone/petalace-cleanup-transaction.json")
+    if cleanup and (cleanup.status=="in_progress" or cleanup.status=="recovery_failed") then return {ok=false,code="locked",error="花链清理尚未确认恢复，复制已锁定"} end
+    if self.transaction.locked or (previous and (previous.status=="in_progress" or previous.status=="recovery_failed")) then
         return {ok=false,code="locked",error="上次写入未确认恢复，已锁定。请先检查备份与恢复记录。"}
     end
     self.write_count=0;self.restore_count=0
-    json.dump_file("LoadoutClone/transaction.json",{status="in_progress",source=plan.source.key,options=plan.options})
+    local saved,ok=pcall(json.dump_file,"LoadoutClone/transaction.json",{status="in_progress",source=plan.source.key,options=plan.options})
+    if not saved or ok~=true then
+        return {ok=false,code="journal_failed",error="无法保存事务记录，未写入装备。请检查磁盘空间和目录权限。"}
+    end
     local result=self.transaction:execute(plan)
-    json.dump_file("LoadoutClone/transaction.json",{status=result.ok and "complete" or result.code=="recovery_failed" and "recovery_failed" or "restored",writes=self.write_count,restores=self.restore_count,result=result,options=plan.options})
+    saved,ok=pcall(json.dump_file,"LoadoutClone/transaction.json",{status=result.ok and "complete" or result.code=="recovery_failed" and "recovery_failed" or "restored",writes=self.write_count,restores=self.restore_count,result=result,options=plan.options})
+    if not saved or ok~=true then
+        self.transaction.locked=true
+        return {ok=false,code="journal_failed",error=result.ok and "装备已写入，但事务结果保存失败。已锁定，请勿重复复制；保留日志检查恢复记录。" or "复制失败且事务结果无法保存。已锁定，请保留日志检查恢复记录。",transaction_result=result}
+    end
     return result
 end
 M.equal=equal

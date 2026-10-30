@@ -13,10 +13,14 @@ end
 local controller=Controller.new(backend)
 controller.appearance_error=appearance_error
 local view=View.new()
+controller.cleanup=require("LoadoutClone.cleanup_controller").new(require("LoadoutClone.petalace_cleanup").new())
 local next_refresh=0
 local previous_error=nil
 local last_runtime_state
 re.on_application_entry("LateUpdateBehavior",function()
+    controller.cleanup.external_busy=controller.pending~=nil
+    controller.cleanup:step()
+    if controller.cleanup.job then return end
     local observed=table.concat({tostring(controller.appearance_only),tostring(controller.copy_appearance),tostring(controller.copy_weapon_visibility),tostring(controller.selected),tostring(controller.state)},"/")
     if observed~=last_runtime_state then
         last_runtime_state=observed
@@ -37,4 +41,4 @@ re.on_draw_ui(function()
     if changed then view:set_open(value) end
     if view.font then imgui.pop_font() end
 end)
-log.info("[LoadoutClone 1.1.0] loaded; panel closed until explicitly opened")
+log.info("[LoadoutClone 1.1.1] loaded; panel closed until explicitly opened")

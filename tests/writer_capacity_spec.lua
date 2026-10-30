@@ -121,3 +121,59 @@ assert(#plan.entries==2 and plan.entries[1].kind=="appearance" and plan.entries[
 assert(plan.entries[2].expected._EquipMysetIndex==-1 and plan.entries[2].expected._ItemMysetIndex==-1)
 assert(w.write_count==0 and plan.slot==nil)
 print("PASS 仅外观事务不访问装备箱，仅预留外观与猎人组合，装备和道具关联为 -1")
+
+-- 花链已有同款时不应再分配独立库存。
+local w,s=appearance_fixture(false)
+local data=sdk.get_managed_singleton("snow.data.DataManager")
+local cages=data._PlEquipBox._LvBuffCageInventoryList
+s.items[7].object._IdType=4;s.items[7].object._IdVal=123
+local existing=cages.mItems[1];existing._IdType=4;existing._IdVal=123
+local p=w:prepare(s)
+assert(p.allocated[7]==existing)
+for _,entry in ipairs(p.entries) do assert(entry.dest~=existing,"已有花链不得写入或回滚") end
+assert(w.write_count==0)
+print("PASS 花链满箱仍复用同款，原对象不进入写入列表")
+-- 先有空槽也必须优先复用后方同款；不同类型的相同数值 ID 不匹配。
+for _,case in ipairs({"later_match","different_id","different_type","missing","duplicate"}) do
+ local w,s=appearance_fixture(false)
+ local cages=sdk.get_managed_singleton("snow.data.DataManager")._PlEquipBox._LvBuffCageInventoryList
+ local empty,other=equip(0),equip(1)
+ s.items[7].object._IdType=4;s.items[7].object._IdVal=123
+ other._IdType=case=="different_type" and 2 or 4;other._IdVal=case=="different_id" and 456 or 123
+ cages.mItems=arr({empty,other});cages.mSize=2
+ if case=="missing" then other._IdType=0 end
+ if case=="duplicate" then empty._IdType=4;empty._IdVal=123 end
+ local p=w:prepare(s)
+ local reused=case=="later_match" or case=="duplicate"
+ assert(#p.reused==(reused and 1 or 0))
+ assert(p.allocated[7]==(case=="later_match" and other or empty))
+ local writes=0;for _,entry in ipairs(p.entries) do if entry.equipment_kind=="petalace" then writes=writes+1 end end
+ assert(writes==(reused and 0 or 1))
+ if reused then
+  w:verify_reused(p)
+  local ref=p.reused[1];ref.dest._IdVal=999
+  local ok,err=pcall(w.verify_reused,w,p);assert(not ok and tostring(err):find("复用花链已变化",1,true))
+  ref.dest._IdVal=123
+  ref.dest["<InventoryIndex>k__BackingField"]=99
+  assert(not pcall(w.verify_reused,w,p))
+  ref.dest["<InventoryIndex>k__BackingField"]=ref.index
+  cages.mItems[ref.position+1]=equip(ref.index)
+  assert(not pcall(w.verify_reused,w,p))
+ end
+end
+print("PASS 后方同款优先、异 ID/类型不复用、缺少时新增、重复同款选首项、引用/ID/索引变化拒绝")
+
+-- 失败回滚仅处理新条目，原花链不得被复制或恢复。
+local w,s=appearance_fixture(false)
+local existing=sdk.get_managed_singleton("snow.data.DataManager")._PlEquipBox._LvBuffCageInventoryList.mItems[1]
+existing._IdType=4;existing._IdVal=123;s.items[7].object._IdType=4;s.items[7].object._IdVal=123
+local prepared=w:prepare(s)
+w.prepare=function() return prepared end
+w.assert_context=function(self,p) self:verify_reused(p) end
+local touched=0
+w.apply=function(_,entry) assert(entry.dest~=existing);entry.write_started=true;touched=touched+1;error("fault") end
+w.restore=function(_,entry) assert(entry.dest~=existing);touched=touched-1 end
+w.verify_restored=function() end
+local result=w.transaction:execute(s)
+assert(not result.ok and result.code=="failed" and touched==0 and existing._IdVal==123 and existing._IdType==4)
+print("PASS 复用花链在写入失败及回滚期间不被修改")
