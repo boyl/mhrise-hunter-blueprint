@@ -16,6 +16,28 @@ local function cached_flower(set)
  local _,get=N.array_access(N.field(set,"<InventoryDataList>k__BackingField"),16)
  return get(6)
 end
+-- 仅为不一致提供证据，不放宽判断、不改变提交或恢复顺序。
+local function differences(expected,actual,path,out,depth)
+ if #out>=8 then return end
+ if type(expected)=="table" and type(actual)=="table" and depth<12 then
+  local keys,seen={},{}
+  for k in pairs(expected)do keys[#keys+1]=k;seen[k]=true end
+  for k in pairs(actual)do if not seen[k]then keys[#keys+1]=k end end
+  table.sort(keys,function(a,b)return tostring(a)<tostring(b)end)
+  for _,k in ipairs(keys)do differences(expected[k],actual[k],path.."."..tostring(k),out,depth+1);if #out>=8 then break end end
+ elseif not W.equal(expected,actual) then
+  out[#out+1]={path=path,expected=expected,actual=actual,expected_type=type(expected),actual_type=type(actual)}
+ end
+end
+function M:check(e,expected,message,phase)
+ local actual=self:state(e)
+ if W.equal(actual,expected) then return end
+ local diff={};differences(expected,actual,"$",diff,0)
+ local failure={phase=phase,kind=e.kind,index=e.index,differences=diff,expected=clone(expected),actual=clone(actual)}
+ if phase=="restore" then self.recovery_failure=failure else self.failure=failure end
+ local label=e.kind..(e.index~=nil and " #"..e.index or "")
+ error(message.." ["..label.."; "..(diff[1]and diff[1].path or "unknown").."]",0)
+end
 function M.new()
  local self=setmetatable({writer=W.new({}),locked=false},{__index=M});self.transaction=T.new(self);return self
 end
@@ -26,6 +48,7 @@ function M:scan()
  return r
 end
 function M:prepare(preview)
+ assert(Layout.replacement_schema==1,"清理模块版本不一致，请完整覆盖补丁并重启游戏")
  local now=self:scan();assert(W.equal(now,preview),"花链或组合已变化，请重新扫描")
  assert(#now.plan.remove>0 or now.plan.needs_layout,"没有重复花链或待整理空位")
  assert(not now.backup.pack and #(now.backup.BackupLvBuffCageInventoryList or {})==0 and #(now.backup.BackupLvBuffCageInventoryRef or {})==0,"请先关闭原生装备菜单，再扫描清理")
@@ -37,6 +60,10 @@ function M:prepare(preview)
  local _,sets=N.array_access(N.field(manager,"_PlEquipMySetList"),1024)
  local plan={entries={},preview=now,manager=manager,character=now.character,current=now.current_indices,sets={}}
  local removed={};for _,index in ipairs(now.plan.remove)do removed[index]=true end
+ -- 只比较将删除对象与保留对象，原对象全程保留供回滚；不再 copy 空对象到旧对象。
+ for _,index in ipairs(now.plan.remove)do
+  assert(W.equal(W.equipment_state(by_index[index]),W.equipment_state(by_index[now.plan.redirect[index]])),"同 ID 花链属性不同，停止清理")
+ end
  local layout=Layout.prepare(inventory,removed,self.writer)
  local references={}
  for _,ref in ipairs(now.references)do
@@ -74,12 +101,6 @@ function M:prepare(preview)
   end
   if not W.equal(doc,after) then plan.entries[#plan.entries+1]={kind="visibility",before=doc,expected=after} end
  end
- for _,index in ipairs(now.plan.remove)do
-  self.writer.native.game_method_calls=0
-  local dest=by_index[index];assert(W.equal(W.equipment_state(dest),W.equipment_state(by_index[now.plan.redirect[index]])),"同 ID 花链属性不同，停止清理");local empty=assert(sdk.create_instance("snow.data.EquipmentInventoryData",true)):add_ref()
-  self.writer.native:call("snow.data.EquipmentInventoryData",".ctor()",empty)
-  plan.entries[#plan.entries+1]={kind="flower",dest=dest,object=empty,backup=self.writer:backup("snow.data.EquipmentInventoryData",dest),before=W.equipment_state(dest),expected=W.equipment_state(empty),index=index}
- end
  plan.entries[#plan.entries+1]=layout
  plan.current=clone(now.current_indices)
  if now.current~=-1 then
@@ -105,7 +126,7 @@ function M:assert_context(plan)
  local now=self:scan();assert(W.equal(now,plan.preview),"清理前数据已变化")
 end
 function M:apply(e)
- assert(W.equal(self:state(e),e.before),"清理目标已变化")
+ self:check(e,e.before,"清理目标已变化","before")
  e.write_started=true
  if e.kind=="layout" then Layout.write(e,false)
  elseif e.kind=="current" then e.setter:call(e.dest,6,e.expected[7])
@@ -118,13 +139,13 @@ function M:apply(e)
   self.writer:copy(e.kind=="set" and "snow.equip.PlEquipMySetData" or "snow.data.EquipmentInventoryData",e.dest,e.object)
   if e.kind=="flower" then assert(N.field(e.dest,"<InventoryIndex>k__BackingField")==e.index,"清理改变库存索引") end
  end
- assert(W.equal(self:state(e),e.expected),"清理结果回读不一致")
+ self:check(e,e.expected,"清理结果回读不一致","apply")
  if e.cached_expected then assert(cached_flower(e.dest)==e.cached_expected,"组合缓存回读不一致")end
  self.writes=self.writes+1
  if self.fault_after==self.writes then error("cleanup injected failure") end
 end
 function M:verify(plan)
- for _,e in ipairs(plan.entries)do assert(W.equal(self:state(e),e.expected),"清理回读不一致") end
+ for _,e in ipairs(plan.entries)do self:check(e,e.expected,"清理回读不一致","verify") end
  assert(Identity.current()==plan.character,"角色已变化")
  assert(W.equal(N.array(N.field(N.field(plan.manager,"_PlEquipPack"),"_InventoryIndexList")),plan.current),"当前穿着已变化")
  if plan.current_object then
@@ -150,18 +171,18 @@ function M:restore(e)
 end
 function M:verify_restored(e)
  if e.write_started then
-  assert(W.equal(self:state(e),e.before),"清理恢复失败")
+  self:check(e,e.before,"清理恢复失败","restore")
   if e.cached_before then assert(cached_flower(e.dest)==e.cached_before,"组合缓存恢复失败")end
  end
 end
 function M:execute(preview)
  if self.locked or busy(journal) or busy("LoadoutClone/transaction.json") then return {ok=false,error="存在未确认恢复的操作，清理已锁定"} end
- self.writes=0;self.restores=0
- save(journal,{status="in_progress",preview=preview})
+ self.writes=0;self.restores=0;self.failure=nil;self.recovery_failure=nil
+ save(journal,{status="in_progress",preview=preview,cleanup_build="petalace-replacement-1"})
  local result=self.transaction:execute(preview)
  local status=result.ok and "complete" or result.code=="recovery_failed" and "recovery_failed" or "restored"
  self.locked=result.code=="recovery_failed"
- local ok=pcall(save,journal,{status=status,preview=preview,result=result,writes=self.writes,restores=self.restores})
+ local ok=pcall(save,journal,{status=status,cleanup_build="petalace-replacement-1",preview=preview,result=result,writes=self.writes,restores=self.restores,failure=self.failure,recovery_failure=self.recovery_failure})
  if not ok then self.locked=true;return {ok=false,error="清理结果无法保存，已锁定，请保留记录检查；勿重复操作"} end
  return result
 end

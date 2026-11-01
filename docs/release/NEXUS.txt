@@ -1,7 +1,7 @@
-[b]1.1.1 · 花链复用与清理 / Petalace fixes[/b]
+[b]1.1.2 · 花链清理兼容性更新 / Petalace cleanup compatibility[/b]
 [color=#ff9900][b]使用前建议备份存档。Back up your save before use.[/b][/color]
-已有同款花链直接复用。新增显式历史重复清理与空位整理，同步当前佩戴和配装引用，不改动其他装备索引。先扫描并验证回滚，再最终确认；未确认不保留清理结果。已实测保存重启后保留。
-Reuses matching petalaces. Adds explicit duplicate cleanup and gap removal with equipped/loadout references preserved. Run scan and rollback validation before final confirmation. Verified after saving and restarting.
+改用新空对象替换历史重复花链，保留原对象供回滚；增加详细字段差异记录与模块版本检查。本机实测正常清理和故障回滚，核对 99 套配装恢复一致。原反馈尚未在本机复现；新路径未完成保存重启专项验证。测试环境出现一次显卡驱动重置，关联尚未确认。
+Replaces duplicates with fresh empty entries, preserves original objects for rollback, and adds precise diagnostics and module checks. Real commits and rollback were tested with 99 loadouts checked. The original report remains unreproduced locally; dedicated save/restart validation for the new path is pending. A display-driver reset occurred during testing; its connection remains unconfirmed.
 
 [size=5][b]Hunter Blueprint · 猎人蓝图[/b][/size]
 Copy a lobby hunter's equipment, decorations, talisman, Switch Skills and optional augments into a new Hunter Loadout. Chinese interface.
