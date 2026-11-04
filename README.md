@@ -97,3 +97,7 @@ MonsterHunterRise/                 ← 游戏根目录
 ## 开发
 
 `python tools/run_tests.py` 执行纯 Lua 回归（需要 lupa）；`python tools/check_lua.py` 检查语法。验收记录在 `docs/acceptance/loadout-clone.md`。开发工具不进入玩家安装包，原始采样证据不公开分发。
+
+## 1.1.3 兼容修复
+
+缺少安全钩子存储接口时，保留幻化与染色复制，仅停用武器显示状态同步并提示更新 REFramework。三种 Lua 环境离线回归通过，反馈用户环境尚未实机验证。

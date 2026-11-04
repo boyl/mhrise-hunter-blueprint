@@ -19,6 +19,7 @@ function M:prepare_equipment(source)
  if self.tracks_weapon_color then self.adapter:prepare_equipment(source) end
 end
 function M:prepare_binding(plan)
+ assert(not (plan.source.options and plan.source.options.copy_weapon_visibility==true) or self.weapon_visibility_available~=false,"当前 REFramework 不支持武器显示状态同步，已停止写入")
  if self.adapter.binding then return self.adapter.binding:prepare(plan) end
 end
 function M:apply_binding(entry) self.adapter.binding:apply(entry) end

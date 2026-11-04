@@ -10,7 +10,9 @@ end
 local M={}
 function M.new(adapter)
     local appearance_available=type(adapter.supports_appearance)=="function" and adapter:supports_appearance()==true
-    return setmetatable({adapter=adapter,members={},state="initial",copy_augments=true,allow_illegal_augments=true,appearance_only=false,copy_appearance=false,copy_weapon_visibility=false,appearance_available=appearance_available},{__index=M})
+    local visibility_available=appearance_available and (type(adapter.supports_weapon_visibility)~="function" or adapter:supports_weapon_visibility()==true)
+    local visibility_warning=type(adapter.weapon_visibility_warning)=="function" and adapter:weapon_visibility_warning() or nil
+    return setmetatable({adapter=adapter,members={},state="initial",copy_augments=true,allow_illegal_augments=true,appearance_only=false,copy_appearance=false,copy_weapon_visibility=false,appearance_available=appearance_available,weapon_visibility_available=visibility_available,visibility_warning=visibility_warning},{__index=M})
 end
 function M:clear_selection()
     self.selected=nil;self.pending=nil;self.snapshot=nil;self.error=nil;self.job=nil;self.result=nil;self.progress=nil
@@ -107,7 +109,7 @@ function M:set_copy_appearance(value)
 end
 function M:set_copy_weapon_visibility(value)
     assert(type(value)=="boolean","copy_weapon_visibility must be boolean")
-    if value and not self.copy_appearance then return false end
+    if value and (not self.copy_appearance or self.weapon_visibility_available==false) then return false end
     if value==self.copy_weapon_visibility then return true end
     self.copy_weapon_visibility=value
     self.pending=nil;self.snapshot=nil;self.error=nil;self.job=nil;self.result=nil;self.progress=nil

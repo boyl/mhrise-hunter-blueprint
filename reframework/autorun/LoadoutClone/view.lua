@@ -84,12 +84,13 @@ function M:body(controller,width)
         if not controller.appearance_only then changed_appearance,appearance=imgui.checkbox("复制外观（幻化与染色）",controller.copy_appearance) end
         if changed_appearance then controller:set_copy_appearance(appearance) end
         wrapped("新增外观组合并关联猎人个人组合，当前外观不变。",width,COLOR.muted)
-        if controller.copy_appearance then
+        if controller.copy_appearance and controller.weapon_visibility_available~=false then
             imgui.spacing()
             local changed_visibility,visibility=imgui.checkbox("复制武器显示状态",controller.copy_weapon_visibility)
             if changed_visibility then controller:set_copy_weapon_visibility(visibility) end
             wrapped("切换组合时应用对方的显示／隐藏状态；不勾选则保留自己的设置。",width,COLOR.muted)
         end
+        if controller.visibility_warning then wrapped(controller.visibility_warning,width,COLOR.muted) end
     end
     space();imgui.separator();space()
     if controller.selected and not controller.pending and not (controller.cleanup and controller.cleanup.job) then

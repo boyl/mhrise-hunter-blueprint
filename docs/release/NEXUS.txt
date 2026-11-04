@@ -1,3 +1,8 @@
+[b]1.1.3 · 外观运行环境兼容修复 / Appearance runtime compatibility[/b]
+[color=#ff9900][b]使用前建议备份存档。Back up your save before use.[/b][/color]
+缺少安全钩子接口时保留幻化与染色复制，仅停用武器显示状态同步并提示更新 REFramework。三种 Lua 环境离线回归通过；反馈用户环境尚未实机验证。跨角色外观蓝图未加入本版。
+Layered appearance and dye copying remain available when the safe hook-storage API is missing; only weapon visibility synchronization is unavailable. Offline regression passed in three Lua configurations; the reported runtime has not been tested in-game. Cross-character blueprints are not included.
+
 [b]1.1.2 · 花链清理兼容性更新 / Petalace cleanup compatibility[/b]
 [color=#ff9900][b]使用前建议备份存档。Back up your save before use.[/b][/color]
 改用新空对象替换历史重复花链，保留原对象供回滚；增加详细字段差异记录与模块版本检查。本机实测正常清理和故障回滚，核对 99 套配装恢复一致。原反馈尚未在本机复现；新路径未完成保存重启专项验证。测试环境出现一次显卡驱动重置，关联尚未确认。
