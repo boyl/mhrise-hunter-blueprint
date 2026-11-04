@@ -7,7 +7,7 @@ function M.state(obj)
     out._Name=obj:get_field("_Name") or ""
     return out
 end
-function M.prepare(native,manager,equip_slot,overwear_slot)
+function M.prepare(native,manager,equip_slot,overwear_slot,name)
     local list=Native.field(manager,"_HunterMySetList")
     assert(list:get_size()<=1024,"猎人组合数量超出范围")
     local slot
@@ -17,7 +17,7 @@ function M.prepare(native,manager,equip_slot,overwear_slot)
     local staged=assert(sdk.create_instance(M.type_name,true)):add_ref()
     native:call(M.type_name,".ctor()",staged)
     native:call(M.type_name,"setupParam",staged,-1,equip_slot,overwear_slot or -1)
-    staged:set_field("_Name",sdk.create_managed_string("大厅复制 "..(slot+1)))
+    staged:set_field("_Name",sdk.create_managed_string(name or ("大厅复制 "..(slot+1))))
     local expected=M.state(staged)
     assert(expected._IsUsing and expected._ItemMysetIndex==-1 and expected._EquipMysetIndex==equip_slot and expected._OverwearMysetIndex==(overwear_slot or -1),"猎人组合关联验证失败")
     return {kind="hunter",dest=dest,object=staged,before=M.state(dest),expected=expected,slot=slot,type_name=M.type_name}

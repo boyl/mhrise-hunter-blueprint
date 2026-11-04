@@ -1,0 +1,7 @@
+local N=require('LoadoutClone.blueprint_native')
+local ids=N.legacy_actions({{id=43,group=0},{id=47,group=2},{id=120,group=3},{id=45,group=1},{id=123,group=5}})
+assert(ids[1]==43 and ids[2]==45 and ids[3]==47 and #ids==3)
+assert(N.legacy_actions({{id=9,group=2}})[1]==0)
+assert(not pcall(N.legacy_actions,{{id=1,group=0},{id=2,group=0}}))
+assert(not pcall(N.legacy_actions,{{id=1,group=-1}}))
+print('PASS 本机五槽按原生分组转基础三槽、新增大师槽排除、缺项固定空值、重复及非法分组拒绝')

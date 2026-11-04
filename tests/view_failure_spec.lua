@@ -9,7 +9,9 @@ imgui={
  pop_font=function() fonts=fonts-1 end,
  button=function() return false end,
  text=function(value) texts[#texts+1]=value end,
- get_window_size=function() error("window size unavailable") end,
+ get_display_size=function()return {x=2560,y=1440}end,
+    get_scroll_max_y=function()return 0 end,
+    get_window_size=function() error("window size unavailable") end,
 }
 for _,name in ipairs({"spacing","separator","same_line","set_next_window_size"}) do imgui[name]=function() end end
 local view=View.new();view:set_open(true);view.font=1;view.font_attempted=true;view.font_size=22

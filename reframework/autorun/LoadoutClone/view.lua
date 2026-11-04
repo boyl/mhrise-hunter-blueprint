@@ -7,6 +7,7 @@ local function traceback(value,message)
     end
     return tostring(type(value)=="thread" and message or value)
 end
+local BlueprintView=require('LoadoutClone.blueprint_view')
 local M={}
 -- 当前 REFramework 所绑定 ImGui 的 FramePadding / ButtonTextAlign。
 local STYLE_FRAME_PADDING,STYLE_BUTTON_TEXT_ALIGN=11,24
@@ -37,14 +38,22 @@ end
 local function heading(text)
     space();imgui.text_colored(text,COLOR.heading);imgui.spacing()
 end
-function M.new() return setmetatable({open=false,collapsed=false,resize=true,font=nil,font_attempted=false},{__index=M}) end
+function M.new() return setmetatable({open=false,collapsed=false,resize=true,font=nil,font_attempted=false,tab='lobby'},{__index=M}) end
 function M:set_open(value)
     self.open=value
     if value then self.collapsed=false;self.resize=true end
 end
 function M:body(controller,width)
+    if controller.blueprint_error then wrapped('蓝图库未就绪：'..controller.blueprint_error,width,COLOR.error) end
     wrapped(controller.appearance_only and "选择猎人，单独复制外观" or "选择猎人，复制完整配装",width,COLOR.heading)
     wrapped(controller.appearance_only and "保存外观及猎人个人组合，保留自己的装备与替换技。" or "新增装备与珠子，保存为猎人个人组合。当前穿着不变。",width,COLOR.muted)
+    local full_width=width
+    local columns=width>=840 and imgui.begin_table('lobby_layout',2,0,{width,0})
+    if columns then
+        imgui.table_setup_column('hunters',0,1);imgui.table_setup_column('options',0,1)
+        imgui.table_next_column();width=math.floor(full_width/2)-24
+    end
+    local body_ok,body_error=pcall(function()
     heading("01  大厅猎人  ·  "..#controller.members.." 人")
     if #controller.members==0 then
         wrapped("暂无其他猎人，加入多人大厅后自动更新。",width,COLOR.muted)
@@ -62,6 +71,7 @@ function M:body(controller,width)
         if pressed then controller:select(member.key) end
         imgui.spacing()
     end
+    if columns then imgui.table_next_column()end
     heading("02  复制选项")
     if controller.appearance_available then
         local changed_only,only=imgui.checkbox("仅复制外观",controller.appearance_only==true)
@@ -93,7 +103,7 @@ function M:body(controller,width)
         if controller.visibility_warning then wrapped(controller.visibility_warning,width,COLOR.muted) end
     end
     space();imgui.separator();space()
-    if controller.selected and not controller.pending and not (controller.cleanup and controller.cleanup.job) then
+    if controller.selected and not controller.pending and not (controller.cleanup and controller.cleanup.job) and not (controller.blueprints and controller.blueprints.pending) then
         if imgui.button(controller.appearance_only and "复制所选外观" or "复制所选配装",{width,48}) then controller:request_copy() end
     else
         wrapped(controller.pending and "正在读取与校验，请稍候……" or "先在上方选择一位猎人",width,COLOR.muted)
@@ -121,9 +131,13 @@ function M:body(controller,width)
             wrapped("可勾选“允许非法炼化”后重试。",width,COLOR.muted)
         else wrapped("可重新选择猎人后重试。详情见 REFramework 日志。",width,COLOR.muted) end
     end
+    end)
+    if columns then imgui.end_table()end
+    if not body_ok then error(body_error)end
+    width=full_width
+    space();imgui.separator();space()
     local cleanup=controller.cleanup
-    if cleanup then
-        heading("03  清理与整理花链")
+    if cleanup and imgui.tree_node("清理与整理花链") then
         wrapped("仅清理同款重复花链，保留当前佩戴、锁定和名片使用项；自动整理空位并修正组合引用。",width,COLOR.muted)
         if cleanup.job then wrapped("正在检查与处理，请稍候……",width,COLOR.heading)
         elseif controller.pending then wrapped("请等待配装复制完成。",width,COLOR.muted)
@@ -142,6 +156,7 @@ function M:body(controller,width)
         end
         if cleanup.result then wrapped(cleanup.result,width,COLOR.success) end
         if cleanup.error then wrapped(cleanup.error:match("[^\n]+") or cleanup.error,width,COLOR.error) end
+        imgui.tree_pop()
     end
 end
 function M:ensure_font()
@@ -156,13 +171,16 @@ function M:ensure_font()
         else log.error("[LoadoutClone] Chinese font unavailable") end
     end
 end
+function M.metrics()return M.last_layout end
 function M:draw(controller)
     if not self.open or not reframework:is_drawing_ui() then return end
     self:ensure_font()
     if self.font then imgui.push_font(self.font) end
-    if self.layout_version~=2 then self.resize=true;self.layout_version=2 end
+    if self.layout_version~=4 then self.resize=true;self.layout_version=4 end
     if self.resize then
-        imgui.set_next_window_size(self.collapsed and {320,110} or {620,680},1);self.resize=false
+        local display=imgui.get_display_size()
+        local initial={math.min(1120,math.max(320,display.x-64)),math.min(960,math.max(240,display.y-80))}
+        imgui.set_next_window_size(self.collapsed and {320,110} or initial,1);self.resize=false
     end
     self.open=imgui.begin_window(self.font and "猎人蓝图" or "Hunter Blueprint",self.open,0)
     local ok,err=xpcall(function()
@@ -174,11 +192,27 @@ function M:draw(controller)
             space();imgui.separator();space()
             if not self.font then imgui.text("Missing font: NotoSansSC-Regular.otf")
             else
-                local width=math.max(160,imgui.get_window_size().x-36)
-                self:body(controller,width)
+                local width=math.max(80,imgui.get_window_size().x-36)
+                if width<300 then
+                    wrapped('窗口过窄，请拖动右下角加宽。',width,COLOR.muted)
+                else
+                if controller.blueprints then
+                    local half=math.floor((width-12)/2)
+                    if imgui.button((self.tab=='lobby' and '【大厅复制】' or '大厅复制'),{half,38}) then self.tab='lobby' end
+                    imgui.same_line()
+                    if imgui.button((self.tab=='blueprints' and '【我的蓝图】' or '我的蓝图'),{half,38}) then self.tab='blueprints' end
+                    space()
+                end
+                if self.tab=='blueprints' and controller.blueprints then
+                    BlueprintView.draw(controller.blueprints,width,{wrapped=wrapped,fitted=fitted,heading=heading,space=space,color=COLOR})
+                else self:body(controller,width) end
+                space()
+                end
             end
         end
     end
+    local size=imgui.get_window_size()
+    M.last_layout={width=size.x,height=size.y,scroll_y=imgui.get_scroll_max_y(),tab=self.tab,collapsed=self.collapsed}
     end,traceback)
     if self.font then imgui.pop_font() end
     if not ok then

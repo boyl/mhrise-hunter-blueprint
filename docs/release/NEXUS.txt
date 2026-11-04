@@ -1,7 +1,18 @@
+[size=5][b]1.2.0 · 我的蓝图 / My Blueprints[/b][/size]
+[color=#ff9900][size=4][b]使用前建议备份存档。Back up your save before use.[/b][/size][/color]
+保存当前完整配装到本地蓝图库，选择条目后导入当前角色，无需大厅。包含装备、珠子、护石、花链、替换技及炼化；可选幻化、染色与武器显示状态，也可仅导入外观。旧外观蓝图兼容。新版双栏布局、分页及自适应窗口，修复数字名称和空数组保存问题。
+Save your current full loadout to a local library and import it without a lobby. Includes equipment, decorations, talisman, petalace, Switch Skills and augments, with optional appearance, dyes and weapon visibility or appearance-only import. Existing appearance blueprints remain compatible. Responsive two-column layout and pagination; numeric-name and empty-array fixes.
+
+蓝图库：[b]reframework/data/LoadoutClone/appearance-blueprints.json[/b]，最多 100 条。升级及迁移时保留整个 data/LoadoutClone 文件夹。完整配装导入要求双方大师等级开放状态相同；仅外观不限。我的蓝图默认包含外观，武器显示状态默认关闭。保存不新增装备，导入不自动换装。
+The library holds up to 100 entries and is shared between characters. Preserve the entire data/LoadoutClone folder when updating or moving computers. Full import requires the same Master Rank unlock state; appearance-only import does not. Saving adds no equipment; importing does not equip the result.
+
+本机保存、完整导入、换装及保存重启回读已通过；九组选项通过原生临时重建和写入前检查，130 个性别专属外观通过映射与临时对象检查。[b]跨角色导入与异性角色实际换装尚未实机验收。[/b]
+Same-character save/import/equip and save/restart checks passed. Nine option combinations passed native temporary reconstruction and pre-write checks; 130 sex-specific appearance mappings passed temporary-object checks. [b]Cross-character import and actual equipping on an opposite-sex character remain unverified in-game.[/b]
+
 [b]1.1.3 · 外观运行环境兼容修复 / Appearance runtime compatibility[/b]
 [color=#ff9900][b]使用前建议备份存档。Back up your save before use.[/b][/color]
-缺少安全钩子接口时保留幻化与染色复制，仅停用武器显示状态同步并提示更新 REFramework。三种 Lua 环境离线回归通过；反馈用户环境尚未实机验证。跨角色外观蓝图未加入本版。
-Layered appearance and dye copying remain available when the safe hook-storage API is missing; only weapon visibility synchronization is unavailable. Offline regression passed in three Lua configurations; the reported runtime has not been tested in-game. Cross-character blueprints are not included.
+缺少安全钩子接口时保留幻化与染色复制，仅停用武器显示状态同步并提示更新 REFramework。三种 Lua 环境离线回归通过；反馈用户环境尚未实机验证。该历史版本不含蓝图库。
+Layered appearance and dye copying remain available when the safe hook-storage API is missing; only weapon visibility synchronization is unavailable. Offline regression passed in three Lua configurations; the reported runtime has not been tested in-game. That historical version did not include blueprints.
 
 [b]1.1.2 · 花链清理兼容性更新 / Petalace cleanup compatibility[/b]
 [color=#ff9900][b]使用前建议备份存档。Back up your save before use.[/b][/color]
@@ -48,7 +59,7 @@ Use the framework's dinput8.dll in the game root for non-VR play. Source code ar
   dinput8.dll                     (REFramework)
   reframework/
     autorun/LoadoutClone.lua
-    autorun/LoadoutClone/         (22 modules)
+    autorun/LoadoutClone/         (34 modules)
     fonts/NotoSansSC-Regular.otf[/code]
 
 [size=4][b]Upgrade / Uninstall · 升级与卸载[/b][/size]

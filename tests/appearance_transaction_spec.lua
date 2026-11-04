@@ -5,7 +5,10 @@ package.loaded["LoadoutClone.native"]={new=function() return {} end,field=functi
 local Writer=require("LoadoutClone.writer")
 json={load_file=function() return nil end,dump_file=function() return true end}
 local total=0
-local function test(name,fn) fn();total=total+1;print("PASS "..name) end
+local function test(name,fn)
+ -- 每个独立场景模拟独立会话；同一场景的多写入器仍共享故障锁。
+ package.loaded["LoadoutClone.writer"]=nil;Writer=require("LoadoutClone.writer")
+ fn();total=total+1;print("PASS "..name) end
 local function fixture(fault)
  local snapshot={schema=1,weapon_id=134217728,colors={{enabled=true,hsv={30,90,47}}}}
  local box={used=false,ids={0,4096},colors={0,0},hunter=-1}

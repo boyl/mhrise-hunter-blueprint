@@ -78,16 +78,7 @@ function M:list_members()
     end
     return result
 end
-function M:capture(key)
-    local list=self:list_members()
-    local target
-    for _,member in ipairs(list.members) do if member.key==key then target=member;break end end
-    assert(target,"目标玩家已离开大厅")
-    local manager=sdk.get_managed_singleton("snow.gui.EquipStatusParamManager")
-    local packets=required(manager,"_lobbyParam")
-    assert(target.index<array_size(packets,16),"目标装备数据未加载")
-    local packet=packets:get_element(target.index)
-    assert(packet,"目标装备数据未加载")
+function M.plain(value)
     local budget=6000
     local function plain(value,depth)
         budget=budget-1
@@ -113,7 +104,19 @@ function M:capture(key)
         end
         return result
     end
-    local data=plain(packet,0)
+    return plain(value,0)
+end
+function M:capture(key)
+    local list=self:list_members()
+    local target
+    for _,member in ipairs(list.members) do if member.key==key then target=member;break end end
+    assert(target,"目标玩家已离开大厅")
+    local manager=sdk.get_managed_singleton("snow.gui.EquipStatusParamManager")
+    local packets=required(manager,"_lobbyParam")
+    assert(target.index<array_size(packets,16),"目标装备数据未加载")
+    local packet=packets:get_element(target.index)
+    assert(packet,"目标装备数据未加载")
+    local data=M.plain(packet)
     -- 完整配装包中空护石对象表示未装备；保留空位，不凭空制造护石。
     if packet:get_field("_talismanParam")==nil then data._talismanParam={empty=true} end
     local status=data._equipStatusParam

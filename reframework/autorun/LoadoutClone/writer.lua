@@ -3,6 +3,8 @@ local Native=require("LoadoutClone.native")
 local Transaction=require("LoadoutClone.transaction")
 local Hunter=require("LoadoutClone.hunter")
 local M={}
+-- 蓝图每次导入创建独立写入器；同会话故障锁必须跨实例保留。
+local session_locked=false
 local field,array=Native.field,Native.array
 function M.pair_index(obj)
     local linked=obj:get_field("<PairInsectInventory>k__BackingField")
@@ -65,7 +67,7 @@ function M:prepare(source)
         local plan={source=source,entries={},manager=manager,current=array(field(field(manager,"_PlEquipPack"),"_InventoryIndexList"))}
         local appearance=self.appearance:prepare(source.appearance,plan)
         plan.overwear_slot=appearance.slot;plan.entries[#plan.entries+1]=appearance
-        local hunter=Hunter.prepare(self.native,manager,-1,appearance.slot)
+        local hunter=Hunter.prepare(self.native,manager,-1,appearance.slot,source.name)
         hunter.backup=self:backup(Hunter.type_name,hunter.dest)
         plan.entries[#plan.entries+1]=hunter;plan.hunter_slot=hunter.slot
         if self.appearance.prepare_binding then
@@ -176,7 +178,7 @@ function M:prepare(source)
         plan.overwear_slot=entry.slot
         plan.entries[#plan.entries+1]=entry
     end
-    local hunter=Hunter.prepare(self.native,manager,plan.slot,plan.overwear_slot)
+    local hunter=Hunter.prepare(self.native,manager,plan.slot,plan.overwear_slot,source.name)
     hunter.backup=self:backup(Hunter.type_name,hunter.dest)
     plan.entries[#plan.entries+1]=hunter;plan.hunter_slot=hunter.slot
     if wants_visibility then assert(type(self.appearance.prepare_binding)=="function","武器显示状态服务未就绪") end
@@ -251,7 +253,7 @@ function M:apply(entry)
         end
         staged:set_field("_IsUsing",true)
         -- 不截断玩家名称的 UTF-8 字节；配装名使用短固定前缀与槽位。
-        staged:set_field("_Name",sdk.create_managed_string("大厅复制 "..(plan.slot+1)))
+        staged:set_field("_Name",sdk.create_managed_string(plan.source.name or ("大厅复制 "..(plan.slot+1))))
         self.native:call("snow.equip.PlEquipMySetData","setupParam()",staged)
         for key,values in pairs({_ActionIdList=plan.source.actions,_ActionIdListMR_Red=plan.source.red,_ActionIdListMR_Blue=plan.source.blue}) do
             local target=field(staged,key);assert(#array(target)==#values,"替换技数组长度不一致")
@@ -281,7 +283,7 @@ function M:verify(plan)
     end
     assert(equal(array(field(field(plan.manager,"_PlEquipPack"),"_InventoryIndexList")),plan.current),"当前穿戴被改变")
     if plan.source and plan.source.appearance then self.appearance:verify_current(plan) end
-    return {slot=plan.slot and plan.slot+1 or nil,hunter_slot=plan.hunter_slot+1,name="大厅复制 "..(plan.hunter_slot+1),overwear_slot=plan.overwear_slot and plan.overwear_slot+1 or nil,options=plan.source.options}
+    return {slot=plan.slot and plan.slot+1 or nil,hunter_slot=plan.hunter_slot+1,name=plan.source.name or ("大厅复制 "..(plan.hunter_slot+1)),overwear_slot=plan.overwear_slot and plan.overwear_slot+1 or nil,options=plan.source.options}
 end
 function M:restore(entry)
     if not entry.write_started then return end
@@ -306,7 +308,7 @@ function M:execute(plan)
     local previous=json.load_file("LoadoutClone/transaction.json")
     local cleanup=json.load_file("LoadoutClone/petalace-cleanup-transaction.json")
     if cleanup and (cleanup.status=="in_progress" or cleanup.status=="recovery_failed") then return {ok=false,code="locked",error="花链清理尚未确认恢复，复制已锁定"} end
-    if self.transaction.locked or (previous and (previous.status=="in_progress" or previous.status=="recovery_failed")) then
+    if session_locked or self.transaction.locked or (previous and (previous.status=="in_progress" or previous.status=="recovery_failed")) then
         return {ok=false,code="locked",error="上次写入未确认恢复，已锁定。请先检查备份与恢复记录。"}
     end
     self.write_count=0;self.restore_count=0
@@ -315,9 +317,10 @@ function M:execute(plan)
         return {ok=false,code="journal_failed",error="无法保存事务记录，未写入装备。请检查磁盘空间和目录权限。"}
     end
     local result=self.transaction:execute(plan)
+    if self.transaction.locked then session_locked=true end
     saved,ok=pcall(json.dump_file,"LoadoutClone/transaction.json",{status=result.ok and "complete" or result.code=="recovery_failed" and "recovery_failed" or "restored",writes=self.write_count,restores=self.restore_count,result=result,options=plan.options})
     if not saved or ok~=true then
-        self.transaction.locked=true
+        self.transaction.locked=true;session_locked=true
         return {ok=false,code="journal_failed",error=result.ok and "装备已写入，但事务结果保存失败。已锁定，请勿重复复制；保留日志检查恢复记录。" or "复制失败且事务结果无法保存。已锁定，请保留日志检查恢复记录。",transaction_result=result}
     end
     return result

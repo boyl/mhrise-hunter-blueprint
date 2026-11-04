@@ -32,14 +32,18 @@ function M.resolve(part,catalog,options)
             if not part.DecoSkillEquipUp or part.DecoSkillEquipUp[i] then allowed[id]=true end
         end
     end
+    local exact=part.ExactDecoIds
+    if exact then dense(exact,3,"原始珠子 ID");for _,id in ipairs(exact)do assert(integer(id,0,0xffffffff),"原始珠子 ID 无效")end end
     local candidates={}
     for slot=1,3 do
         assert(integer(levels[slot],0,4),"珠子等级无效")
         candidates[slot]={}
-        if levels[slot]==0 then candidates[slot][1]={id=0,skills={},levels={}}
+        if levels[slot]==0 then
+            if exact and exact[slot]~=0 then return nil,"decoration_empty_slot_mismatch" end
+            candidates[slot][1]={id=0,skills={},levels={}}
         else
             for _,d in ipairs(catalog) do
-                if d.level==levels[slot] and d.color==colors[slot] then
+                if d.level==levels[slot] and d.color==colors[slot] and (not exact or exact[slot]==d.id) then
                     local fits=true
                     for i,id in ipairs(d.skills) do
                         if id>0 and (not allowed[id] or (total[id] or 0)<d.levels[i]) then fits=false end

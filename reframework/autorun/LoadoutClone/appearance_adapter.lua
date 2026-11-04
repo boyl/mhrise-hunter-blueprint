@@ -30,7 +30,7 @@ function M:prepare(snapshot,plan)
   if N.field(item,"_IsUsing")==false then slot=i;dest=item:add_ref();break end
  end
  assert(slot,"外观组合没有空位")
- local candidate=self.objects:build(snapshot,"猎人蓝图 "..(slot+1))
+ local candidate=self.objects:build(snapshot,plan.source.name or ("猎人蓝图 "..(slot+1)))
  return {slot=slot,dest=dest,object=candidate,before=self.objects:state(dest),
   expected=self.objects:state(candidate),backup=self.objects:clone(dest)}
 end

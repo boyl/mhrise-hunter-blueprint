@@ -1,0 +1,42 @@
+local B=require('LoadoutClone.blueprints')
+local data,backup,fail=nil,nil,false
+local store=B.new({load=function()return B.copy(data)end,exists=function()return data~=nil end,
+ backup=function(v)backup=B.copy(v);return true end,write=function(v)if fail then fail=false;data={broken=true};return false end;data=B.copy(v);return true end})
+local s={schema=1,weapon_id=134217728,weapon_hidden=false,armor_ids={0,4096,8192,12288,16384},colors={{},{}} ,weapon_color={enabled=false}}
+for c=1,2 do for p=1,5 do s.colors[c][p]={enabled=true,hsv={120,50,60}}end end
+local origin={name='猎人',sex=0,weapon_type=3}
+local a=store:add('暖暖',origin,s,100)
+local b=store:add('暖暖',origin,s,101)
+assert(a.id~=b.id and b.name=='暖暖 (2)' and store:load().count==2)
+s.colors[1][1].hsv[1]=1;assert(store:find(a.id).snapshot.colors[1][1].hsv[1]==120)
+store:rename(b.id,'换装');assert(store:find(b.id).name=='换装')
+local before=B.copy(data);fail=true
+assert(not pcall(store.remove,store,a.id));assert(require('LoadoutClone.appearance').same(data,before))
+store:remove(a.id);assert(store:load().count==1 and store:find(b.id))
+local corrupt=B.copy(data);corrupt.entries[1].snapshot.colors[1][1].hsv[1]=361
+assert(not pcall(B.validate,corrupt))
+corrupt=B.copy(data);corrupt.entries[1].origin.sex=3;assert(not pcall(B.validate,corrupt))
+data={broken=true};assert(not pcall(store.add,store,'new',origin,s,102));assert(data.broken)
+local missing=B.new({load=function()return nil end,exists=function()return true end});assert(not pcall(missing.load,missing))
+assert(not pcall(B.name,'\n'));assert(not pcall(B.name,string.rep('名',49)))
+print('PASS 蓝图库同名独立保存、隔离源数据、改名删除、部分写入恢复、损坏与无效输入拒绝')
+
+
+data=nil
+local payload={schema=1,data={_weaponParam={WeaponId=1},_armorParam={{ArmorId=1},{ArmorId=2},{ArmorId=3},{ArmorId=4},{ArmorId=5}},_lvBuffParam={id=1},_talismanParam={empty=true},_equipStatusParam={isMRRelease=true,switchActionId={1,2,3},switchActionId_MR_1={1,2,3,4,5},switchActionId_MR_2={1,2,3,4,5}}}}
+local old=store:add('旧外观',origin,s,101)
+local full=store:add('完整配装',origin,s,102,payload)
+assert(store:load().schema==2 and store:find(full.id).equipment.data._weaponParam.WeaponId==1)
+assert(store:find(old.id).equipment==nil)
+payload.data._weaponParam.WeaponId=2;assert(store:find(full.id).equipment.data._weaponParam.WeaponId==1)
+local broken=B.copy(data);broken.entries[2].equipment.data._weaponParam.WeaponId=0/0;assert(not pcall(B.validate,broken))
+broken=B.copy(data);broken.entries[2].equipment.data._armorParam[5]=nil;assert(not pcall(B.validate,broken))
+broken=B.copy(data);broken.entries[2].equipment.data._equipStatusParam.switchActionId_MR_1={1};assert(not pcall(B.validate,broken))
+print('PASS 完整蓝图版本升级、旧外观共存、快照隔离、畸形装备及替换技拒绝')
+
+local empty=B.copy(store:find(full.id).equipment);empty.data._weaponParam.EquipSkill={};empty.data._weaponParam.EquipSkillLv={}
+local encoded=B.equipment(empty);assert(#encoded.empty_arrays==2)
+encoded.data._weaponParam.EquipSkill=nil;encoded.data._weaponParam.EquipSkillLv=nil
+local restored=B.equipment(encoded);assert(type(restored.data._weaponParam.EquipSkill)=='table' and #restored.data._weaponParam.EquipSkill==0)
+encoded.data._weaponParam.EquipSkill={99};assert(not pcall(B.equipment,encoded))
+print('PASS REFramework 空数组转 null 的回读恢复与伪造空数组标记拒绝')

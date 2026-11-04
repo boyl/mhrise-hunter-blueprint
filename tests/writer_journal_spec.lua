@@ -1,6 +1,7 @@
 package.loaded["LoadoutClone.native"]={new=function() return {} end}
 local W=require("LoadoutClone.writer")
 for _,failure in ipairs({"before","after","throw"}) do
+ package.loaded["LoadoutClone.writer"]=nil;W=require("LoadoutClone.writer")
  local w=W.new({});local calls=0;local saves=0
  w.transaction.execute=function() calls=calls+1;return {ok=true,result={name="test"}} end
  json={load_file=function() return nil end,dump_file=function()
@@ -15,6 +16,10 @@ for _,failure in ipairs({"before","after","throw"}) do
   assert(w.transaction.locked)
   local again=w:execute({source={key="a"}})
   assert(not again.ok and calls==1,"结果落盘失败后必须阻止重复复制")
+  local other=W.new({})
+  other.transaction.execute=function()calls=calls+1;return {ok=true}end
+  local retried=other:execute({source={key='new-blueprint'},options={}})
+  assert(retried.code=='locked' and calls==1,'新蓝图写入器不能绕过同会话的失败锁')
  end
 end
 print("PASS 事务开始记录失败零写入、结果记录失败锁定、IO 异常明确返回")

@@ -61,7 +61,7 @@ function M:build(snapshot,name)
   for channel=1,2 do desired[part][channel]=C.from_snapshot(snapshot.colors[channel][part]) end
  end
  local result=self:fresh(T)
- self.native:call(T,"setName",result,name)
+ self.native:call(T,"setName(System.String)",result,sdk.create_managed_string(name))
  self.native:call(T,"set_IsUsing",result,true)
  self.native:call(T,"setWeaponOverwearId",result,snapshot.weapon_id)
  for _,id in ipairs(snapshot.armor_ids) do self.native:call(T,"setPlOverwearId",result,id) end

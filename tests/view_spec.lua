@@ -10,6 +10,8 @@ imgui={
     text=function(text) calls[text]=true end,
     checkbox=function(_,value) return false,value end,
     calc_text_size=function(text) return {x=utf8.len(text)*12,y=22} end,
+    get_display_size=function()return {x=2560,y=1440}end,
+    get_scroll_max_y=function()return 0 end,
     get_window_size=function() return {x=620,y=680} end,
     text_colored=function(text) calls[text]=true end,
 }
@@ -43,3 +45,12 @@ controller.set_copy_appearance=function(self,value) self.copy_appearance=value e
 view:body(controller,580)
 assert(options["复制外观（幻化与染色）"] and controller.copy_appearance)
 print("PASS 外观菜单能力门禁与复选框事件（2 项）")
+
+local initial
+imgui.set_next_window_size=function(size)initial=size end
+view.resize=true;view:draw(controller)
+assert(initial[1]==1120 and initial[2]==960)
+imgui.get_display_size=function()return {x=1280,y=720}end
+view.resize=true;view:draw(controller)
+assert(initial[1]<=1216 and initial[2]<=640)
+print('PASS 初始窗口适配 1440p 与 720p 屏幕边界')
