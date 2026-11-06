@@ -7,6 +7,20 @@ local Identity=require('LoadoutClone.character_identity')
 local M={}
 local shortcut='snow.equip.EquipShortcut'
 function M.new()return setmetatable({native=N.new()},{__index=M})end
+-- dye-overwear-20261106-01：手动着色更新独立颜色对象，当前外观组合保留旧值。
+function M.current_colors(manager)
+ local owner=N.field(manager,'_PlArmorColorMySetData')
+ local colors=N.field(owner,'_OverwearSymbolColor')
+ local count,parts=N.array_access(N.field(colors,'_Parts'),5)
+ assert(count==5,'当前外观染色部位不完整')
+ local out={{},{}}
+ for part=0,4 do
+  local n,channels=N.array_access(N.field(parts(part),'_ColorData'),2)
+  assert(n==2,'当前外观染色通道不完整')
+  for ch=0,1 do out[ch+1][part+1]=C.read(channels(ch))end
+ end
+ return out
+end
 function M:capture()
  self.native.game_method_calls=0
  local identity=Identity.current()
@@ -27,9 +41,8 @@ function M:capture()
  local weapon=assert(at(indices[1]))
  assert(N.field(weapon,'<InventoryIndex>k__BackingField')==indices[1],'当前武器索引不一致')
  local kind=N.scalar(self.native:call(shortcut,'getPlWeaponType(snow.data.ContentsIdSystem.WeaponId)',nil,N.field(weapon,'_IdVal')))
- local snapshot={schema=1,weapon_id=current.weapon,armor_ids=current.armor,colors={{},{}},
+ local snapshot={schema=1,weapon_id=current.weapon,armor_ids=current.armor,colors=M.current_colors(manager),
   weapon_hidden=(N.scalar(N.field(manager,'_VisiblePartsFlag'))&1)==0,weapon_color=C.read(N.field(weapon,'_HyakuryuColorData'))}
- for p=1,5 do for ch=1,2 do snapshot.colors[ch][p]=current.colors[p][ch]end end
  assert(Identity.current()==identity,'读取期间角色已变化')
  return {identity=identity,origin={name=N.field(card,'HunterName'),sex=sex,weapon_type=kind},snapshot=B.snapshot(snapshot)}
 end

@@ -1,3 +1,17 @@
+[size=5][b]1.2.1 · 外观染色修复 / Layered dye fix[/b][/size]
+[color=#ff9900][b]使用前建议备份存档。Back up your save before use.[/b][/color]
+修复“我的蓝图”保存外观时读取旧组合染色，导致导入后变回默认色的问题。现在读取当前实际外观着色，保留两通道 HSV、默认色标志及启用状态，兼容旧蓝图。
+
+旧蓝图已经丢失的颜色无法自动恢复：更新后请在来源角色重新保存，再导入。 本次修复针对幻化／外观着色，不新增普通防具着色复制。防具显示／隐藏设置仍由当前角色保留，游戏可能因此重算染色启用标志。
+
+实机通过完整及仅外观导入、同角色换装、同性交叉角色仅外观应用，以及保留外观组合的保存重启回读。三种 Lua 环境回归与语法检查通过。本轮未验证异性角色；完整组合的重启关联因手动整理删除受到干扰，不计为通过。
+
+Fixes My Blueprints saving stale layered-loadout colors instead of the current layered armor dyes, causing imported appearance to use default colors. Preserves both dye channels, HSV values and native default/enabled flags while retaining compatibility with older blueprints.
+
+Previously lost colors cannot be recovered automatically. After updating, save a new blueprint on the source character, then import it. This fixes layered armor dyes; it does not add regular armor dye copying. Armor display/hide settings remain those of the current character and may cause the game to recalculate dye enable flags.
+
+In-game checks passed for full and appearance-only importing, same-character equipping, same-sex cross-character appearance-only application, and retained appearance-loadout save/restart persistence. Regression passed in three Lua configurations plus syntax checks. Opposite-sex equipping was not tested in this round; full-loadout link persistence was affected by manual deletion/reorganization and is not counted as passed.
+
 [size=5][b]1.2.0 · 我的蓝图 / My Blueprints[/b][/size]
 [color=#ff9900][size=4][b]使用前建议备份存档。Back up your save before use.[/b][/size][/color]
 保存当前完整配装到本地蓝图库，选择条目后导入当前角色，无需大厅。包含装备、珠子、护石、花链、替换技及炼化；可选幻化、染色与武器显示状态，也可仅导入外观。旧外观蓝图兼容。新版双栏布局、分页及自适应窗口，修复数字名称和空数组保存问题。

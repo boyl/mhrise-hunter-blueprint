@@ -26,7 +26,12 @@ function M.snapshot(s)
   assert(count==n,'外观数组长度无效')
  end
  local function color(v)
-  local c=C.from_snapshot(v);return c.enabled and {enabled=true,hsv=c.hsv} or {enabled=false}
+  local c=C.from_snapshot(v)
+  local out={enabled=c.enabled}
+  -- 保留本机原生快照；旧格式不补字段，避免改变既有文件比较和恢复契约。
+  if v.default~=nil then out.default=c.default end
+  if c.enabled or v.hsv~=nil then out.hsv=c.hsv end
+  return out
  end
  sequence(s.armor_ids,5);sequence(s.colors,2)
  for i=1,5 do out.armor_ids[i]=integer(s.armor_ids[i],0,0xffffffff,'防具外观')end

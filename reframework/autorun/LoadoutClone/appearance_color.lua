@@ -45,8 +45,15 @@ end
 function M.from_snapshot(source)
  assert(type(source)=="table" and type(source.enabled)=="boolean","染色快照无效")
  local value={enabled=source.enabled,default=not source.enabled,hsv={0,0,0}}
- if source.enabled then
-  assert(type(source.hsv)=="table","已启用染色缺少 HSV")
+ -- 本机快照提供原生 default/HSV；旧远端快照缺少 default 时沿用原约定。
+ if source.default~=nil then
+  assert(type(source.default)=="boolean","默认染色标志无效")
+  value.default=source.default
+  assert(type(source.hsv)=="table","原生染色快照缺少 HSV")
+ end
+ if source.enabled or source.hsv~=nil then
+  assert(type(source.hsv)=="table","染色缺少 HSV")
+  for k in pairs(source.hsv) do assert(k==1 or k==2 or k==3,"HSV 包含多余分量") end
   for i=1,3 do value.hsv[i]=source.hsv[i] end
  end
  validate(value);return value

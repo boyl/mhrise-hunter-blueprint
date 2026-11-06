@@ -40,3 +40,29 @@ encoded.data._weaponParam.EquipSkill=nil;encoded.data._weaponParam.EquipSkillLv=
 local restored=B.equipment(encoded);assert(type(restored.data._weaponParam.EquipSkill)=='table' and #restored.data._weaponParam.EquipSkill==0)
 encoded.data._weaponParam.EquipSkill={99};assert(not pcall(B.equipment,encoded))
 print('PASS REFramework 空数组转 null 的回读恢复与伪造空数组标记拒绝')
+
+-- 原生本机染色的两个标志独立，禁用通道也可能保存已调好的颜色。
+local Color=require('LoadoutClone.appearance_color')
+local Same=require('LoadoutClone.appearance').same
+for _,enabled in ipairs({false,true})do for _,default in ipairs({false,true})do
+ local input=B.copy(s)
+ for ch=1,2 do for part=1,5 do input.colors[ch][part]={enabled=enabled,default=default,hsv={part*30,ch*40,80}}end end
+ input.weapon_color={enabled=enabled,default=default,hsv={0,100,80}}
+ local normalized=B.snapshot(input)
+ assert(Same(normalized,input),'蓝图不得丢弃原生染色标志或禁用通道 HSV')
+ assert(Same(B.snapshot(normalized),normalized),'染色规范化必须幂等')
+ for ch=1,2 do for part=1,5 do
+  assert(Same(Color.from_snapshot(normalized.colors[ch][part]),input.colors[ch][part]))
+ end end
+ assert(Same(Color.from_snapshot(normalized.weapon_color),input.weapon_color))
+ data=nil
+ local entry=store:add('染色回归',origin,input,103)
+ assert(Same(store:find(entry.id).snapshot,input),'磁盘边界往返必须保留全部染色字段')
+end end
+local legacy=B.copy(s);legacy.weapon_color={enabled=false}
+assert(Same(B.snapshot(legacy),legacy),'旧蓝图无新增字段时保持原有表示')
+assert(Color.from_snapshot({enabled=false}).default==true)
+assert(Color.from_snapshot({enabled=true,hsv={0,100,80}}).default==false)
+assert(not pcall(Color.from_snapshot,{enabled=true,default='false',hsv={0,100,80}}))
+assert(not pcall(Color.from_snapshot,{enabled=false,default=false}))
+print('PASS 两种标志四组合、十通道与武器颜色无损往返、旧格式兼容及畸形标志拒绝')
