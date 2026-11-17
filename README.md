@@ -1,3 +1,5 @@
+[![Downloads](https://img.shields.io/github/downloads/boyl/mhrise-hunter-blueprint/total?label=Downloads&color=blue)](https://github.com/boyl/mhrise-hunter-blueprint/releases) [![Stars](https://img.shields.io/github/stars/boyl/mhrise-hunter-blueprint?label=Stars)](https://github.com/boyl/mhrise-hunter-blueprint/stargazers) [![Latest Release](https://img.shields.io/github/v/release/boyl/mhrise-hunter-blueprint?label=Release)](https://github.com/boyl/mhrise-hunter-blueprint/releases/latest) [![License](https://img.shields.io/github/license/boyl/mhrise-hunter-blueprint?label=License)](https://github.com/boyl/mhrise-hunter-blueprint/blob/HEAD/LICENSE)
+
 # Hunter Blueprint · 猎人蓝图
 
 在《怪物猎人：崛起／曙光》中选择大厅猎人，一键复制装备、珠子、护石、两书替换技及可选炼化，保存为猎人个人组合。支持一起复制幻化、染色，也可单独复制外观。
